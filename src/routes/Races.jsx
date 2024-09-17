@@ -22,7 +22,7 @@ const Races = () => {
       <h1 className=' -text--red '>RACES F1 - 2023</h1>
       <ul>
         {races.map(race => (
-          <li key={race.id}><strong>{race.meeting_name}</strong> - {race.country_name} - {race.location}</li>
+          <li><strong>{race.meeting_name}</strong> - {race.country_name} - {race.location}</li>
         ))}
       </ul>
     </div>

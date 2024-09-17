@@ -1,4 +1,5 @@
 import Races from './routes/Races'
+import Drivers from './routes/Drivers'
 import './App.css'
 
 function App() {
@@ -6,6 +7,8 @@ function App() {
   return (
     <>
       <Races></Races>
+      <hr />
+      <Drivers></Drivers>
     </>
   )
 }
