@@ -1,0 +1,32 @@
+.wallpaper {
+    background-image: url(https://www.shutterstock.com/image-vector/roadside-vector-free-space-text-260nw-1258619212.jpg);
+    background-position: center;
+    animation: scroll-background 0.1s linear infinite;
+}
+
+.wallpaper::before {
+    z-index: 1;
+    filter: blur(1px);
+}
+
+@keyframes scroll-background {
+    0% {
+      background-position: 0 -50px;
+    }
+    100% {
+      background-position: 100% -50px;
+    }
+  }
+
+.animate-spin{	
+    animation: spin 0.3s linear infinite;
+
+    @keyframes spin {
+        from {
+            transform: rotate(0deg);
+        }
+        to {
+            transform: rotate(360deg);
+        }
+    }
+}
