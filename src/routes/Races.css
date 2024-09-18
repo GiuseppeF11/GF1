@@ -1,0 +1,32 @@
+.flag {
+    position: relative;
+    background-position: center;
+    height: 10rem;
+    font-size: 25px;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    text-shadow: 5px 5px 10px black;;
+}
+
+.flag::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: inherit;
+    filter: /* blur(10px) */ brightness(0.7);
+    z-index: 0; 
+    transition: filter 0.3s ease; 
+}
+
+.flag * {
+    position: relative;
+    z-index: 1;
+}
+
+.flag:hover::before {
+    filter: /* blur(10px) */ brightness(0.2);
+}
