@@ -13,8 +13,8 @@
     }
   }
 
-.animated-spin{	
-    animation: spin 0.3s linear infinite;
+.spin{	
+    animation: spin 0.2s linear infinite;
 
     @keyframes spin {
     from {

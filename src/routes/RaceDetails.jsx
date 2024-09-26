@@ -23,12 +23,12 @@ const RaceDetails = () => {
   }
 
   return (
-    <div className='container bg-slate-100 p-4'>
+    {/* <div className='container bg-slate-100 p-4'>
       <h2 className='text-center text-3xl font-bold'>{raceDetails.meeting_name}</h2>
       <p><strong>Country:</strong> {raceDetails.country_name}</p>
       <p><strong>Location:</strong> {raceDetails.location}</p>
       <p><strong>Date:</strong> {raceDetails.date}</p>
-    </div>
+    </div> */}
   );
 };
 
