@@ -96,11 +96,11 @@ const NextGPHero = ({ race, season, totalRaces }) => {
                     key={s.label}
                     className={`rounded-xl px-3 py-2 text-center min-w-[52px] flex-shrink-0 border backdrop-blur-sm transition-opacity ${
                       past
-                        ? 'border-white/10 bg-white/5 opacity-40'
-                        : 'border-f1-red/30 bg-f1-dark/70'
+                        ? 'border-f1-red/30 bg-f1-dark/70'
+                        : 'border-white/10 bg-white/5 opacity-40'
                     }`}
                   >
-                    <div className={`text-[10px] font-bold uppercase tracking-wider ${past ? 'text-white/40' : 'text-f1-red'}`}>
+                    <div className={`text-[10px] font-bold uppercase tracking-wider ${past ? 'text-f1-red' : 'text-white/40'}`}>
                       {s.label}
                     </div>
                     <div className="text-white text-[10px] font-medium mt-0.5">

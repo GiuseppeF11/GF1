@@ -36,8 +36,7 @@ const RaceResultsTable = ({ results, sessionType }) => {
             <th className="text-left pb-2 pr-3 w-8">Pos</th>
             <th className="text-left pb-2 pr-3">Pilota</th>
             <th className="text-left pb-2 pr-3 hidden sm:table-cell">Scuderia</th>
-            {isRace && <th className="text-right pb-2 hidden xs:table-cell">Gap</th>}
-            {isQual && <th className="text-right pb-2">Tempo</th>}
+            <th className="text-right pb-2 pr-3">Tempo</th>
             {isRace && <th className="text-right pb-2 pl-3">Pt</th>}
           </tr>
         </thead>
@@ -84,26 +83,23 @@ const RaceResultsTable = ({ results, sessionType }) => {
                 <td className="py-2.5 pr-3 hidden sm:table-cell">
                   <span className="text-f1-muted text-xs">{driver?.team_name ?? '—'}</span>
                 </td>
-                {isRace && (
-                  <td className="py-2.5 text-right hidden xs:table-cell">
-                    {pos === 1 ? (
-                      <span className="text-f1-red font-semibold text-xs">Leader</span>
-                    ) : isDNF ? (
+                <td className="py-2.5 text-right pr-3">
+                  {isRace ? (
+                    isDNF ? (
                       <span className="text-f1-muted text-xs">{r.status}</span>
                     ) : r.gap ? (
-                      <span className="text-white/60 text-xs tabular-nums">
-                        {typeof r.gap === 'string' && !r.gap.startsWith('+') ? '+' : ''}{r.gap}
+                      <span className="text-white/70 text-xs font-mono tabular-nums">
+                        {typeof r.gap === 'string' && !r.gap.startsWith('+') && pos !== 1 ? '+' : ''}{r.gap}
                       </span>
                     ) : (
                       <span className="text-white/20 text-xs">—</span>
-                    )}
-                  </td>
-                )}
-                {isQual && (
-                  <td className="py-2.5 text-right">
-                    <span className="text-white/70 text-xs font-mono tabular-nums">{r.gap ?? '—'}</span>
-                  </td>
-                )}
+                    )
+                  ) : r.gap ? (
+                    <span className="text-white/70 text-xs font-mono tabular-nums">{r.gap}</span>
+                  ) : (
+                    <span className="text-white/20 text-xs">—</span>
+                  )}
+                </td>
                 {isRace && (
                   <td className="py-2.5 text-right pl-3">
                     {r.points && r.points !== '0' ? (

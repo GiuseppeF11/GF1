@@ -26,7 +26,7 @@ const ResultsTable = ({ results, sessionType = 'Race', compact = false }) => {
             <th className="text-left pb-2 pr-3 w-8">Pos</th>
             <th className="text-left pb-2 pr-3">Pilota</th>
             {!compact && <th className="text-left pb-2 pr-3 hidden sm:table-cell">Scuderia</th>}
-            {isRace && <th className="text-right pb-2">Gap</th>}
+            <th className="text-right pb-2">Tempo</th>
           </tr>
         </thead>
         <tbody>
@@ -91,21 +91,23 @@ const ResultsTable = ({ results, sessionType = 'Race', compact = false }) => {
                   </td>
                 )}
 
-                {isRace && (
-                  <td className="py-2.5 text-right">
-                    {pos === 1 ? (
-                      <span className="text-f1-red font-semibold text-xs">Leader</span>
-                    ) : isDNF ? (
+                <td className="py-2.5 text-right">
+                  {isRace ? (
+                    isDNF ? (
                       <span className="text-f1-muted text-xs">{r.status}</span>
                     ) : r.gap ? (
-                      <span className="text-white/60 text-xs tabular-nums">
-                        {typeof r.gap === 'string' && !r.gap.startsWith('+') ? '+' : ''}{r.gap}
+                      <span className="text-white/70 text-xs font-mono tabular-nums">
+                        {typeof r.gap === 'string' && !r.gap.startsWith('+') && pos !== 1 ? '+' : ''}{r.gap}
                       </span>
                     ) : (
                       <span className="text-white/20 text-xs">—</span>
-                    )}
-                  </td>
-                )}
+                    )
+                  ) : r.gap ? (
+                    <span className="text-white/70 text-xs font-mono tabular-nums">{r.gap}</span>
+                  ) : (
+                    <span className="text-white/20 text-xs">—</span>
+                  )}
+                </td>
               </tr>
             );
           })}

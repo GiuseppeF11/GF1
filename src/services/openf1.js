@@ -23,6 +23,9 @@ export const getIntervals = (session_key) =>
 export const getStints = (session_key) =>
   get('/stints', { session_key });
 
+export const getLaps = (session_key) =>
+  get('/laps', { session_key });
+
 export const getPitStops = (session_key) =>
   get('/pit', { session_key });
 

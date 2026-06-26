@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getFinalPositions, getDrivers } from '../services/openf1';
+import { getFinalPositions, getDrivers, getLaps } from '../services/openf1';
 import { getSeasonSchedule, getRaceResults, getQualifyingResults } from '../services/jolpica';
 import { DRIVER_STATICS_2026 } from '../utils/driverStatics2026';
 
@@ -43,11 +43,28 @@ export const useSessionResults = (sessionKey, sessionType, meetingName, year = 2
 
     const run = async () => {
       if (isPractice) {
-        const [positions, drivers] = await Promise.all([
+        const [positions, drivers, laps] = await Promise.all([
           getFinalPositions(sessionKey),
           getDrivers(sessionKey).catch(() => []),
+          getLaps(sessionKey).catch(() => []),
         ]);
         if (cancelled) return;
+
+        // Best lap per driver (exclude pit-out laps and null durations)
+        const bestLapMap = new Map();
+        for (const lap of laps) {
+          if (lap.is_pit_out_lap || !lap.lap_duration) continue;
+          const prev = bestLapMap.get(lap.driver_number);
+          if (!prev || lap.lap_duration < prev) bestLapMap.set(lap.driver_number, lap.lap_duration);
+        }
+
+        // Format seconds → "M:SS.mmm"
+        const formatLapTime = (secs) => {
+          const m = Math.floor(secs / 60);
+          const s = (secs % 60).toFixed(3).padStart(6, '0');
+          return `${m}:${s}`;
+        };
+
         // Build by driver_number; enrich with static photo data keyed by acronym
         const acronymMap = new Map(DRIVER_STATICS_2026);
         const driverMap = new Map(drivers.map(d => ({
@@ -58,7 +75,7 @@ export const useSessionResults = (sessionKey, sessionType, meetingName, year = 2
           position: p.position,
           driver_number: p.driver_number,
           driver: driverMap.get(p.driver_number) ?? null,
-          gap: null,
+          gap: bestLapMap.has(p.driver_number) ? formatLapTime(bestLapMap.get(p.driver_number)) : null,
           points: null,
           status: null,
         })));
