@@ -5,19 +5,21 @@ export default {
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
   theme: {
-    container: {
-      center:true
-    },
     extend: {
       colors: {
-        '--red': '#E10600',
-        '--black': '#000000', 
-        '--grey': '#999999',
-        '--white': '#FFFFFF',
-      }
-
+        'f1-red': '#E10600',
+        'f1-dark': '#15151e',
+        'f1-surface': '#1e1e2e',
+        'f1-border': '#2a2a3e',
+        'f1-muted': '#6b7280',
+      },
+      fontFamily: {
+        sans: ['Inter', 'system-ui', 'sans-serif'],
+      },
+      screens: {
+        'xs': '375px',
+      },
     },
   },
   plugins: [],
 }
-

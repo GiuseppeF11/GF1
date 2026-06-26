@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -8,22 +10,67 @@
   box-sizing: border-box;
 }
 
-/* PALETTE */
-.color-1 {
-  color: #E10600;
+:root {
+  --f1-red: #E10600;
+  --f1-dark: #15151e;
+  --f1-surface: #1e1e2e;
+  --f1-border: #2a2a3e;
+  --f1-muted: #6b7280;
 }
 
-
-.color-2 {
-  color: #000000;
+html {
+  background-color: var(--f1-dark);
+  color: #ffffff;
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
-
-.color-3 {
-  color: #999999;
+body {
+  background-color: var(--f1-dark);
+  min-height: 100dvh;
 }
 
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: var(--f1-surface);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--f1-border);
+  border-radius: 2px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--f1-muted);
+}
 
-.color-4 {
-  color: #FFFFFF;
+/* Horizontal scroll snap */
+.scroll-snap-x {
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+.scroll-snap-x > * {
+  scroll-snap-align: start;
+}
+
+/* Hide scrollbar but keep scroll */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Countdown numbers */
+.countdown-num {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* Team color strip */
+.team-strip {
+  border-left: 3px solid var(--team-color, #6b7280);
 }
