@@ -2,8 +2,15 @@ import axios from 'axios';
 
 const BASE = 'https://api.openf1.org/v1';
 
-const get = (path, params = {}) =>
-  axios.get(`${BASE}${path}`, { params }).then(r => r.data);
+const get = (path, params = {}, retries = 3, delayMs = 400) =>
+  axios.get(`${BASE}${path}`, { params }).then(r => r.data).catch(async (err) => {
+    if (retries > 0 && err?.response?.status === 429) {
+      const jitter = Math.random() * 200;
+      await new Promise(res => setTimeout(res, delayMs + jitter));
+      return get(path, params, retries - 1, delayMs * 2);
+    }
+    throw err;
+  });
 
 export const getMeetings = (year = 2025) =>
   get('/meetings', { year });
