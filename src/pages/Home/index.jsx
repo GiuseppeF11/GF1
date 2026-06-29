@@ -461,13 +461,15 @@ const Home = () => {
         <SeasonEndHero lastRace={lastRace} season={season} />
       )}
 
+      {/* Last session — full width on all viewports */}
+      {!sessionLoading && (
+        <LastSessionWidget session={lastSession} season={season} />
+      )}
+
       {/* 2-column grid */}
       <div className="grid md:grid-cols-7 gap-6">
-        {/* LEFT: last session + standings */}
-        <div className="md:col-span-4 space-y-5">
-          {!sessionLoading && (
-            <LastSessionWidget session={lastSession} season={season} />
-          )}
+        {/* LEFT: standings */}
+        <div className="md:col-span-4">
           <StandingsSection season={season} />
         </div>
 
