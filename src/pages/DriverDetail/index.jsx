@@ -90,7 +90,7 @@ const DriverDetail = () => {
     ? `${jolpikaDriver.givenName} ${jolpikaDriver.familyName}`
     : openF1Driver?.full_name ?? staticData?.full_name ?? driverNumber;
 
-  const headshotUrl = openF1Driver?.headshot_url ?? staticData?.headshot_url ?? null;
+  const headshotUrl = staticData?.headshot_url ?? openF1Driver?.headshot_url ?? null;
   const teamColorHex = openF1Driver?.team_colour ?? staticData?.team_colour ?? null;
   const teamColor = teamColorHex ? `#${teamColorHex}` : '#6b7280';
 

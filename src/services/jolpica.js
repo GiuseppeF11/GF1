@@ -88,17 +88,40 @@ export const getDriverCareerSummary = async (driverId) => {
   return { races, wins, podiums: wins + p2 + p3, poles };
 };
 
-// Titles: Jolpica requires season_year for driverStandings — check each year in parallel.
-// Range 2000–(currentYear-1) covers all titles any active F1 driver could have won.
+// Titles: Jolpica requires season_year — year-by-year check in small batches to avoid 429s.
+// Cached in localStorage (7 day TTL) — past-season titles never change.
 export const getDriverTitles = async (driverId) => {
+  const CACHE_KEY = `gf1_titles_v2_${driverId}`;
+  const TTL_MS = 7 * 24 * 60 * 60 * 1000;
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (raw) {
+      const { count, ts } = JSON.parse(raw);
+      if (Date.now() - ts < TTL_MS) return count;
+    }
+  } catch {}
+
   const lastYear = new Date().getFullYear() - 1;
   const years = Array.from({ length: lastYear - 1999 }, (_, i) => 2000 + i);
-  const standings = await Promise.all(
-    years.map(y =>
-      get(`/${y}/drivers/${driverId}/driverStandings.json`)
-        .then(d => d.MRData.StandingsTable.StandingsLists?.[0]?.DriverStandings?.[0]?.position ?? null)
-        .catch(() => null)
-    )
-  );
-  return standings.filter(pos => pos === '1').length;
+  const standings = [];
+  const BATCH = 5;
+  for (let i = 0; i < years.length; i += BATCH) {
+    const batch = years.slice(i, i + BATCH);
+    const results = await Promise.all(
+      batch.map(y =>
+        getWithRetry(`/${y}/drivers/${driverId}/driverStandings.json`)
+          .then(d => d.MRData.StandingsTable.StandingsLists?.[0]?.DriverStandings?.[0]?.position ?? null)
+          .catch(() => null)
+      )
+    );
+    standings.push(...results);
+    if (i + BATCH < years.length) await new Promise(r => setTimeout(r, 300));
+  }
+
+  const count = standings.filter(pos => pos === '1').length;
+  const responded = standings.filter(s => s !== null).length;
+  if (responded >= years.length / 2) {
+    try { localStorage.setItem(CACHE_KEY, JSON.stringify({ count, ts: Date.now() })); } catch {}
+  }
+  return count;
 };

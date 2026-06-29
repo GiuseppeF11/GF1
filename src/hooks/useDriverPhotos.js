@@ -20,11 +20,17 @@ function saveToStorage(map) {
   } catch {}
 }
 
-// Merge static fallback with live data (live data takes priority)
+// Merge static + live: live wins on all fields EXCEPT headshot_url —
+// F1 CDN (2col, ~220px) is sharper than OpenF1's own headshot URLs.
 function buildMap(liveData) {
   const merged = new Map(DRIVER_STATICS_2026);
   for (const [k, v] of liveData) {
-    merged.set(k, { ...merged.get(k), ...v });
+    const existing = merged.get(k);
+    merged.set(k, {
+      ...existing,
+      ...v,
+      headshot_url: existing?.headshot_url ?? v.headshot_url,
+    });
   }
   return merged;
 }
