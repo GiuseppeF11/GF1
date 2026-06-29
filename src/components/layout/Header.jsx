@@ -59,10 +59,21 @@ const Header = () => {
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-f1-dark/95 backdrop-blur border-b border-f1-border">
       <div className="flex items-center justify-between px-4 h-14 max-w-screen-xl mx-auto">
-        <Link to="/" className="flex items-center gap-2">
-          <span className="text-f1-red font-black text-xl tracking-tighter leading-none">
-            GF1
-          </span>
+        <Link to="/" className="flex items-center" aria-label="GF1 — Home">
+          <svg viewBox="0 0 82 30" xmlns="http://www.w3.org/2000/svg" className="h-8 w-auto" aria-hidden="true">
+            {/* Speed lines */}
+            <rect x="0" y="8"  width="11" height="1.8" rx="0.9" fill="#E8002D" opacity="0.55"/>
+            <rect x="0" y="13" width="8"  height="1.2" rx="0.6" fill="#E8002D" opacity="0.32"/>
+            <rect x="0" y="17" width="5"  height="0.9" rx="0.5" fill="#E8002D" opacity="0.18"/>
+            {/* GF1 italic */}
+            <g transform="translate(15,26) skewX(-9)">
+              <text y="0" fontFamily="'Arial Black',Impact,Arial,sans-serif" fontSize="26" fontWeight="900" fill="#ffffff" letterSpacing="-1">G</text>
+              <text x="19" y="0" fontFamily="'Arial Black',Impact,Arial,sans-serif" fontSize="26" fontWeight="900" fill="#E8002D" letterSpacing="-1">F</text>
+              <text x="37" y="0" fontFamily="'Arial Black',Impact,Arial,sans-serif" fontSize="26" fontWeight="900" fill="#ffffff" letterSpacing="-1">1</text>
+            </g>
+            {/* Underline */}
+            <rect x="15" y="28" width="60" height="2" rx="1" fill="#E8002D"/>
+          </svg>
         </Link>
 
         {/* Desktop nav */}
