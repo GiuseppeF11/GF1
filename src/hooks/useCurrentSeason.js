@@ -1,46 +1,47 @@
 import { useState, useEffect } from 'react';
-import { getMeetings, getSessions } from '../services/openf1';
-import { isPast, isFuture } from '../utils/time';
+import { getSessions } from '../services/openf1';
+import { isPast } from '../utils/time';
 
+const CACHE_KEY = 'gf1_last_session_v1';
+
+const loadCache = (year) => {
+  try {
+    const cached = JSON.parse(localStorage.getItem(CACHE_KEY));
+    return cached?.year === year ? cached.session : null;
+  } catch {
+    return null;
+  }
+};
+
+const saveCache = (year, session) => {
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify({ year, session }));
+  } catch {}
+};
+
+// Fetches all sessions for the year in one call (no getMeetings needed).
+// Shows cached data immediately on subsequent loads — survives OpenF1 429s.
 export const useCurrentSeason = (year = new Date().getFullYear()) => {
-  const [meetings, setMeetings] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [lastSession, setLastSession] = useState(() => loadCache(year));
+  const [loading, setLoading] = useState(() => loadCache(year) === null);
 
   useEffect(() => {
     let cancelled = false;
-    setMeetings([]);
-    setLoading(true);
-    setError(null);
-    getMeetings(year)
-      .then(data => { if (!cancelled) setMeetings(data); })
-      .catch(err => { if (!cancelled) setError(err); })
+    if (loadCache(year) === null) setLoading(true);
+
+    getSessions({ year })
+      .then(sessions => {
+        if (cancelled) return;
+        const completed = sessions.filter(s => isPast(s.date_end));
+        const session = completed[completed.length - 1] ?? null;
+        setLastSession(session);
+        if (session) saveCache(year, session);
+      })
+      .catch(console.error)
       .finally(() => { if (!cancelled) setLoading(false); });
+
     return () => { cancelled = true; };
   }, [year]);
 
-  const nextMeeting = meetings.find(m => isFuture(m.date_end));
-  const pastMeetings = meetings.filter(m => isPast(m.date_end));
-  const lastMeeting = pastMeetings[pastMeetings.length - 1] ?? null;
-
-  return { meetings, nextMeeting, lastMeeting, loading, error };
-};
-
-export const useMeetingSessions = (meetingKey) => {
-  const [sessions, setSessions] = useState([]);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    if (!meetingKey) return;
-    setLoading(true);
-    getSessions({ meeting_key: meetingKey })
-      .then(setSessions)
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, [meetingKey]);
-
-  const completedSessions = sessions.filter(s => isPast(s.date_end));
-  const lastSession = completedSessions[completedSessions.length - 1] ?? null;
-
-  return { sessions, completedSessions, lastSession, loading };
+  return { lastSession, loading };
 };

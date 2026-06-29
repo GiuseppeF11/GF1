@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useCurrentSeason, useMeetingSessions } from '../../hooks/useCurrentSeason';
+import { useCurrentSeason } from '../../hooks/useCurrentSeason';
 import { useDriverStandings, useConstructorStandings } from '../../hooks/useStandings';
 import { useSessionResults } from '../../hooks/useSessionResults';
 import { useSeason } from '../../contexts/SeasonContext';
@@ -175,6 +175,8 @@ const StandingsSection = ({ season }) => {
   const { standings: constructors, loading: cLoad } = useConstructorStandings(season);
   const photoMap = useDriverPhotos();
   const [tab, setTab] = useState('pilots');
+  const [expanded, setExpanded] = useState(false);
+  const PREVIEW = 5;
 
   return (
     <section>
@@ -199,7 +201,7 @@ const StandingsSection = ({ season }) => {
         ))}
       </div>
 
-      <div className="bg-f1-surface border border-f1-border rounded-2xl overflow-hidden max-h-[480px] overflow-y-auto">
+      <div className="bg-f1-surface border border-f1-border rounded-2xl overflow-hidden">
         {tab === 'pilots' ? (
           dLoad
             ? <div className="p-8 text-center text-f1-muted text-sm">Caricamento…</div>
@@ -207,7 +209,7 @@ const StandingsSection = ({ season }) => {
             ? <div className="p-8 text-center text-f1-muted text-sm">Nessun dato disponibile</div>
             : (
               <table className="w-full text-sm">
-                <thead className="sticky top-0 bg-f1-surface z-10">
+                <thead className="bg-f1-surface">
                   <tr className="text-f1-muted text-[10px] uppercase tracking-wider border-b border-f1-border">
                     <th className="text-left px-3 py-2 w-8">P</th>
                     <th className="text-left px-3 py-2">Pilota</th>
@@ -215,7 +217,7 @@ const StandingsSection = ({ season }) => {
                   </tr>
                 </thead>
                 <tbody>
-                  {drivers.map(entry => {
+                  {(expanded ? drivers : drivers.slice(0, PREVIEW)).map(entry => {
                     const d = entry.Driver;
                     const teamId = entry.Constructors?.[0]?.constructorId ?? '';
                     const teamColor = getTeamColor(teamId);
@@ -272,7 +274,7 @@ const StandingsSection = ({ season }) => {
             ? <div className="p-8 text-center text-f1-muted text-sm">Nessun dato disponibile</div>
             : (
               <table className="w-full text-sm">
-                <thead className="sticky top-0 bg-f1-surface z-10">
+                <thead className="bg-f1-surface">
                   <tr className="text-f1-muted text-[10px] uppercase tracking-wider border-b border-f1-border">
                     <th className="text-left px-3 py-2 w-8">P</th>
                     <th className="text-left px-3 py-2">Scuderia</th>
@@ -280,7 +282,7 @@ const StandingsSection = ({ season }) => {
                   </tr>
                 </thead>
                 <tbody>
-                  {constructors.map(entry => {
+                  {(expanded ? constructors : constructors.slice(0, PREVIEW)).map(entry => {
                     const c = entry.Constructor;
                     const teamColor = getTeamColor(c.constructorId);
                     return (
@@ -306,6 +308,14 @@ const StandingsSection = ({ season }) => {
               </table>
             )
         )}
+        {(tab === 'pilots' ? drivers : constructors).length > PREVIEW && (
+          <button
+            onClick={() => setExpanded(e => !e)}
+            className="w-full py-2.5 text-xs font-semibold text-f1-red hover:text-white transition-colors border-t border-f1-border/30"
+          >
+            {expanded ? 'Mostra meno ↑' : 'Mostra tutti →'}
+          </button>
+        )}
       </div>
     </section>
   );
@@ -315,6 +325,9 @@ const StandingsSection = ({ season }) => {
 const UpcomingCalendar = ({ races, season }) => {
   const now = new Date();
   const upcoming = races.filter(r => new Date(`${r.date}T${r.time || '00:00:00Z'}`) > now);
+  const [expanded, setExpanded] = useState(false);
+  const PREVIEW = 4;
+  const visible = expanded ? upcoming : upcoming.slice(0, PREVIEW);
 
   return (
     <div className="bg-f1-surface border border-f1-border rounded-2xl overflow-hidden">
@@ -327,53 +340,65 @@ const UpcomingCalendar = ({ races, season }) => {
       {upcoming.length === 0 ? (
         <p className="text-f1-muted text-sm text-center py-8">Stagione conclusa</p>
       ) : (
-        <div className="divide-y divide-f1-border/30 max-h-[520px] overflow-y-auto">
-          {upcoming.map(race => {
-            const flagUrl = getFlagUrl(race.Circuit.Location.country);
-            const raceUtc = `${race.date}T${race.time || '00:00:00Z'}`;
-            return (
-              <Link
-                key={race.round}
-                to={`/gp/${season}/${race.round}`}
-                className="px-4 py-3 hover:bg-f1-border/20 transition-colors flex items-center gap-3 group"
-              >
-                <img
-                  src={flagUrl}
-                  alt={race.Circuit.Location.country}
-                  className="w-8 h-5 object-cover rounded-sm flex-shrink-0"
-                  onError={e => { e.currentTarget.style.display = 'none'; }}
-                />
-                <div className="flex-1 min-w-0">
-                  <p className="text-white text-xs font-semibold leading-tight truncate group-hover:text-f1-red transition-colors">
-                    {race.raceName.replace(' Grand Prix', ' GP')}
-                  </p>
-                  <p className="text-f1-muted text-[10px]">{race.Circuit.Location.locality}</p>
-                </div>
-                <div className="text-right flex-shrink-0">
-                  <p className="text-white/70 text-xs tabular-nums font-medium">
-                    {toItalianDate(raceUtc, 'd MMM')}
-                  </p>
-                  <p className="text-f1-muted text-[10px]">{toItalianTime(raceUtc)}</p>
-                </div>
-              </Link>
-            );
-          })}
-        </div>
+        <>
+          <div className="divide-y divide-f1-border/30">
+            {visible.map(race => {
+              const flagUrl = getFlagUrl(race.Circuit.Location.country);
+              const raceUtc = `${race.date}T${race.time || '00:00:00Z'}`;
+              return (
+                <Link
+                  key={race.round}
+                  to={`/gp/${season}/${race.round}`}
+                  className="px-4 py-3 hover:bg-f1-border/20 transition-colors flex items-center gap-3 group"
+                >
+                  <img
+                    src={flagUrl}
+                    alt={race.Circuit.Location.country}
+                    className="w-8 h-5 object-cover rounded-sm flex-shrink-0"
+                    onError={e => { e.currentTarget.style.display = 'none'; }}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white text-xs font-semibold leading-tight truncate group-hover:text-f1-red transition-colors">
+                      {race.raceName.replace(' Grand Prix', ' GP')}
+                    </p>
+                    <p className="text-f1-muted text-[10px]">{race.Circuit.Location.locality}</p>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <p className="text-white/70 text-xs tabular-nums font-medium">
+                      {toItalianDate(raceUtc, 'd MMM')}
+                    </p>
+                    <p className="text-f1-muted text-[10px]">{toItalianTime(raceUtc)}</p>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+          {upcoming.length > PREVIEW && (
+            <button
+              onClick={() => setExpanded(e => !e)}
+              className="w-full py-2.5 text-xs font-semibold text-f1-red hover:text-white transition-colors border-t border-f1-border/30"
+            >
+              {expanded ? 'Mostra meno ↑' : `+${upcoming.length - PREVIEW} altri GP →`}
+            </button>
+          )}
+        </>
       )}
     </div>
   );
 };
 
 /* ─── Last session results ────────────────────────────────────── */
-const LastSessionWidget = ({ meeting, session, season }) => {
+const LastSessionWidget = ({ session, season }) => {
+  // OpenF1 sessions don't have meeting_name — use country_name to find the round via findRound
+  const nameHint = session?.country_name ?? session?.location ?? null;
   const { results, loading } = useSessionResults(
     session?.session_key,
     session?.session_name,
-    meeting?.meeting_name,
+    nameHint,
     season
   );
 
-  if (!session || !meeting) return null;
+  if (!session) return null;
 
   const sessionLabel =
     session.session_name === 'Race' ? 'Gara' :
@@ -381,13 +406,17 @@ const LastSessionWidget = ({ meeting, session, season }) => {
     session.session_name === 'Sprint' ? 'Sprint' :
     session.session_name;
 
+  const meetingLabel = session.country_name
+    ? `${session.country_name} GP`
+    : (session.location ?? '');
+
   return (
     <section>
       <div className="flex items-center justify-between mb-3">
         <div>
           <h2 className="text-white font-bold text-base">Ultima sessione</h2>
           <p className="text-f1-muted text-xs">
-            {sessionLabel} · {meeting.meeting_name.replace(' Grand Prix', ' GP')}
+            {sessionLabel} · {meetingLabel}
           </p>
         </div>
         <Link to="/results/races" className="text-f1-red text-xs font-medium hover:underline">
@@ -421,8 +450,7 @@ const LastSessionWidget = ({ meeting, session, season }) => {
 const Home = () => {
   const { season } = useSeason();
   const { races, nextRace, lastRace } = useSchedule(season);
-  const { lastMeeting, loading: meetingLoading } = useCurrentSeason(season);
-  const { lastSession } = useMeetingSessions(lastMeeting?.meeting_key);
+  const { lastSession, loading: sessionLoading } = useCurrentSeason(season);
 
   return (
     <div className="space-y-6 pb-4">
@@ -435,12 +463,12 @@ const Home = () => {
 
       {/* 2-column grid */}
       <div className="grid md:grid-cols-7 gap-6">
-        {/* LEFT: standings + last session */}
+        {/* LEFT: last session + standings */}
         <div className="md:col-span-4 space-y-5">
-          <StandingsSection season={season} />
-          {!meetingLoading && (
-            <LastSessionWidget meeting={lastMeeting} session={lastSession} season={season} />
+          {!sessionLoading && (
+            <LastSessionWidget session={lastSession} season={season} />
           )}
+          <StandingsSection season={season} />
         </div>
 
         {/* RIGHT: upcoming calendar */}

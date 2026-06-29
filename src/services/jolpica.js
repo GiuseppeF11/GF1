@@ -72,3 +72,33 @@ export const getConstructorSeasonResults = (year = CURRENT_YEAR, constructorId) 
   get(`/${year}/constructors/${constructorId}/results.json?limit=500`).then(
     d => d.MRData.RaceTable.Races ?? []
   );
+
+// Career summary for a driver using position-filtered endpoints.
+// Each call fetches limit=1 — we only need MRData.total, not the actual records.
+// Titles are fetched separately via getDriverTitles (year-by-year, required by Jolpica).
+export const getDriverCareerSummary = async (driverId) => {
+  const total = (d) => parseInt(d.MRData?.total ?? '0');
+  const [races, wins, p2, p3, poles] = await Promise.all([
+    get(`/drivers/${driverId}/results.json?limit=1`).then(total).catch(() => 0),
+    get(`/drivers/${driverId}/results/1.json?limit=1`).then(total).catch(() => 0),
+    get(`/drivers/${driverId}/results/2.json?limit=1`).then(total).catch(() => 0),
+    get(`/drivers/${driverId}/results/3.json?limit=1`).then(total).catch(() => 0),
+    get(`/drivers/${driverId}/qualifying/1.json?limit=1`).then(total).catch(() => 0),
+  ]);
+  return { races, wins, podiums: wins + p2 + p3, poles };
+};
+
+// Titles: Jolpica requires season_year for driverStandings — check each year in parallel.
+// Range 2000–(currentYear-1) covers all titles any active F1 driver could have won.
+export const getDriverTitles = async (driverId) => {
+  const lastYear = new Date().getFullYear() - 1;
+  const years = Array.from({ length: lastYear - 1999 }, (_, i) => 2000 + i);
+  const standings = await Promise.all(
+    years.map(y =>
+      get(`/${y}/drivers/${driverId}/driverStandings.json`)
+        .then(d => d.MRData.StandingsTable.StandingsLists?.[0]?.DriverStandings?.[0]?.position ?? null)
+        .catch(() => null)
+    )
+  );
+  return standings.filter(pos => pos === '1').length;
+};

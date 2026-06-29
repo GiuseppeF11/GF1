@@ -1,5 +1,5 @@
 const B = 'https://media.formula1.com/d_driver_fallback_image.png/content/dam/fom-website/drivers';
-const url = (path) => `${B}${path}.transform/1col/image.png`;
+const url = (path) => `${B}${path}.transform/2col/image.png`;
 
 // Static 2026 driver data keyed by name_acronym (OpenF1 format)
 // headshot_url: verified F1 media CDN URLs

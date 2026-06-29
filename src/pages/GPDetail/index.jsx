@@ -14,6 +14,13 @@ const SESSION_LABELS = {
   'Qualifying': 'Q', 'Sprint Qualifying': 'SQ', 'Sprint': 'Sprint', 'Race': 'Gara',
 };
 
+const LiveDot = () => (
+  <span className="relative flex h-1.5 w-1.5 flex-shrink-0">
+    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-f1-red opacity-75" />
+    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-f1-red" />
+  </span>
+);
+
 const GPDetail = () => {
   const { year, round } = useParams();
   const [race, setRace] = useState(null);
@@ -21,6 +28,7 @@ const GPDetail = () => {
   const [openF1Sessions, setOpenF1Sessions] = useState([]);
   const [selectedSession, setSelectedSession] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -54,22 +62,35 @@ const GPDetail = () => {
 
   useEffect(() => {
     if (!meeting?.meeting_key) return;
+    setSessionsLoading(true);
     getSessions({ meeting_key: meeting.meeting_key })
       .then(data => {
         setOpenF1Sessions(data);
+        const now = new Date();
+        const active = data.find(s =>
+          new Date(s.date_start) <= now && now <= new Date(s.date_end)
+        );
         const completed = data.filter(s => isPast(s.date_end));
-        if (completed.length > 0) {
-          setSelectedSession(completed[completed.length - 1]);
-        }
+        setSelectedSession(active ?? completed[completed.length - 1] ?? null);
       })
-      .catch(console.error);
+      .catch(console.error)
+      .finally(() => setSessionsLoading(false));
   }, [meeting?.meeting_key]);
+
+  // Determine if selected session is currently live
+  const isSessionLive = selectedSession
+    ? (() => {
+        const now = new Date();
+        return new Date(selectedSession.date_start) <= now && now <= new Date(selectedSession.date_end);
+      })()
+    : false;
 
   const { results, loading: resultsLoading } = useSessionResults(
     selectedSession?.session_key,
     selectedSession?.session_name,
     race?.raceName,
-    Number(year)
+    Number(year),
+    isSessionLive
   );
 
   if (loading) return <Loader />;
@@ -86,7 +107,6 @@ const GPDetail = () => {
     ? `${race.FirstPractice.date}T${race.FirstPractice.time}`
     : raceUtc;
 
-  // Merge Jolpica pseudo-sessions with real OpenF1 sessions
   const jolpikaSessions = getRaceSessions(race);
   const displaySessions = openF1Sessions.length > 0 ? openF1Sessions : jolpikaSessions;
 
@@ -132,38 +152,46 @@ const GPDetail = () => {
         </div>
       </div>
 
-      {/* Sessions */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2">
+      {/* Sessions carousel */}
+      <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
         {displaySessions.map(s => {
           const label = SESSION_LABELS[s.session_name] ?? s.session_name;
           const past = isPast(s.date_end ?? s.date_start);
+          const isActive = isPast(s.date_start) && !isPast(s.date_end);
           const isSelected = selectedSession?.session_key === s.session_key || selectedSession?.session_name === s.session_name;
           const hasOpenF1 = openF1Sessions.length > 0;
-          const isClickable = hasOpenF1 && past;
+          const isClickable = hasOpenF1 && (past || isActive);
 
           return (
             <button
               key={s.session_key ?? s.session_name}
               onClick={() => isClickable && setSelectedSession(s)}
               disabled={!isClickable}
-              className={`rounded-2xl p-3 text-center border transition-all ${
+              className={`rounded-xl px-3 py-2 text-center min-w-[58px] flex-shrink-0 border backdrop-blur-sm transition-all ${
                 isSelected
-                  ? 'border-f1-red bg-f1-red/10 text-white'
+                  ? 'border-f1-red bg-f1-red/10'
+                  : isActive
+                  ? 'border-f1-red/40 bg-f1-red/5 cursor-pointer'
                   : past
-                  ? 'border-f1-border bg-f1-surface hover:border-f1-red/40 cursor-pointer text-white'
-                  : 'border-f1-border/30 bg-f1-surface/50 text-white/30 cursor-default'
+                  ? 'border-f1-border bg-f1-surface hover:border-f1-red/40 cursor-pointer'
+                  : 'border-f1-border/30 bg-f1-surface/50 opacity-40 cursor-default'
               }`}
             >
-              <div className={`text-sm font-black ${isSelected ? 'text-f1-red' : ''}`}>{label}</div>
-              <div className="text-[10px] mt-1 opacity-70">
-                {toItalianDate(s.date_start, 'EEE d')}
+              <div className={`text-[11px] font-black uppercase tracking-wide ${
+                isSelected || isActive ? 'text-f1-red' : past ? 'text-white' : 'text-white/40'
+              }`}>
+                {label}
               </div>
-              <div className="text-xs font-semibold tabular-nums mt-0.5">
-                {toItalianTime(s.date_start)}
+              <div className="text-white text-[10px] font-medium mt-0.5">
+                {toItalianDate(s.date_start, 'EEE')}
               </div>
-              {past && isClickable && (
-                <div className="text-[9px] text-f1-red mt-1 font-bold uppercase tracking-wide">
-                  Risultati
+              <div className="text-white/70 text-xs font-semibold tabular-nums">
+                {toItalianTime(s.date_start, 'HH:mm')}
+              </div>
+              {isActive && (
+                <div className="flex items-center justify-center gap-1 mt-1">
+                  <LiveDot />
+                  <span className="text-[9px] text-f1-red font-bold uppercase tracking-wide">Live</span>
                 </div>
               )}
             </button>
@@ -175,10 +203,18 @@ const GPDetail = () => {
       {selectedSession && (
         <div className="bg-f1-surface border border-f1-border rounded-2xl p-4">
           <div className="flex items-center justify-between mb-4 pb-3 border-b border-f1-border">
-            <h2 className="text-white font-bold text-sm">
-              {SESSION_LABELS[selectedSession.session_name] ?? selectedSession.session_name}
-              {selectedSession.session_name !== 'Race' && ` — ${selectedSession.session_name}`}
-            </h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-white font-bold text-sm">
+                {SESSION_LABELS[selectedSession.session_name] ?? selectedSession.session_name}
+                {selectedSession.session_name !== 'Race' && ` — ${selectedSession.session_name}`}
+              </h2>
+              {isSessionLive && (
+                <span className="flex items-center gap-1 bg-f1-red/10 border border-f1-red/30 rounded-full px-2 py-0.5">
+                  <LiveDot />
+                  <span className="text-f1-red text-[9px] font-bold uppercase tracking-widest">Live</span>
+                </span>
+              )}
+            </div>
             <span className="text-f1-muted text-xs">
               {toItalianDate(selectedSession.date_start, 'EEE d MMM · HH:mm')}
             </span>
@@ -186,12 +222,14 @@ const GPDetail = () => {
           {resultsLoading ? (
             <Loader size="inline" />
           ) : (
-            <ResultsTable results={results} sessionType={selectedSession.session_name} />
+            <div className="overflow-y-auto max-h-80">
+              <ResultsTable results={results} sessionType={selectedSession.session_name} />
+            </div>
           )}
         </div>
       )}
 
-      {!selectedSession && openF1Sessions.length === 0 && (
+      {!selectedSession && !sessionsLoading && (
         <div className="bg-f1-surface border border-f1-border rounded-2xl p-8 text-center">
           <p className="text-f1-muted text-sm">
             {isPast(raceUtc)

@@ -18,10 +18,12 @@ export const useSchedule = (year = new Date().getFullYear()) => {
   }, [year]);
 
   const now = new Date();
+  const todayStr = now.toISOString().slice(0, 10); // YYYY-MM-DD UTC
   const getRaceDate = (r) => new Date(`${r.date}T${r.time || '00:00:00Z'}`);
 
-  const nextRace = races.find(r => getRaceDate(r) > now);
-  const pastRaces = races.filter(r => getRaceDate(r) <= now);
+  // Show current GP for the whole race day; switch to next one the day after
+  const nextRace = races.find(r => r.date >= todayStr);
+  const pastRaces = races.filter(r => r.date < todayStr);
   const lastRace = pastRaces[pastRaces.length - 1] ?? null;
   const upcomingRaces = races.filter(r => getRaceDate(r) > now);
 
