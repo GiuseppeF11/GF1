@@ -306,30 +306,34 @@ const LastSessionWidget = ({ session, season, races }) => {
 /* ─── Home page ───────────────────────────────────────────────── */
 const Home = () => {
   const { season } = useSeason();
-  const { races, nextRace, lastRace } = useSchedule(season);
+  const { races, nextRace, lastRace, loading: scheduleLoading } = useSchedule(season);
   const { lastSession, loading: sessionLoading } = useCurrentSeason(season);
   const { isLive, round: liveRound } = useLiveSession();
-  const [winners, setWinners] = useState(new Map());
+  // `loaded` keeps a card from claiming the winner is unavailable while still fetching.
+  const [winners, setWinners] = useState({ map: new Map(), loaded: false });
 
   useEffect(() => {
     let cancelled = false;
-    setWinners(new Map());
+    setWinners({ map: new Map(), loaded: false });
     getSeasonWinners(season)
-      .then(map => { if (!cancelled) setWinners(map); })
-      .catch(() => {});
+      .then(map => { if (!cancelled) setWinners({ map, loaded: true }); })
+      .catch(() => { if (!cancelled) setWinners({ map: new Map(), loaded: true }); });
     return () => { cancelled = true; };
   }, [season]);
 
   return (
     <div className="space-y-6 pb-4">
-      {!nextRace && <SeasonEndHero lastRace={lastRace} season={season} />}
+      {/* Waits for the schedule: an empty races list also yields no nextRace, which
+          would briefly announce the champion on every mount of a running season. */}
+      {!scheduleLoading && !nextRace && <SeasonEndHero lastRace={lastRace} season={season} />}
 
       <GPCarousel
         races={races}
         season={season}
         nextRace={nextRace}
         liveRound={isLive ? liveRound : null}
-        winners={winners}
+        winners={winners.map}
+        winnersLoaded={winners.loaded}
       />
 
       {!sessionLoading && (

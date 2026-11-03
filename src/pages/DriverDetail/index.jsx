@@ -8,6 +8,7 @@ import {
   getDriverTitles,
 } from '../../services/jolpica';
 import { useSeason } from '../../contexts/SeasonContext';
+import { useClinchedChampion } from '../../hooks/useChampion';
 import { DRIVER_STATICS_2026 } from '../../utils/driverStatics2026';
 import { posColor } from '../../utils/teamColors';
 import Skeleton, { SkeletonRows } from '../../components/ui/Skeleton';
@@ -99,6 +100,15 @@ const DriverDetail = () => {
     }, 1200);
     return () => { cancelled = true; clearTimeout(timer); };
   }, [jolpikaId]);
+
+  // getDriverTitles only counts completed seasons, since mid-season the standings
+  // leader is not champion yet. Add the running season once the title is decided.
+  const clinchedChampionId = useClinchedChampion(season);
+  const wonRunningSeason =
+    season === new Date().getFullYear() &&
+    clinchedChampionId != null &&
+    clinchedChampionId === jolpikaId;
+  const totalTitles = titles == null ? null : titles + (wonRunningSeason ? 1 : 0);
 
   if (loading) {
     return (
@@ -220,7 +230,7 @@ const DriverDetail = () => {
         {career && (
           <div className="relative z-10 border-t border-white/10 flex divide-x divide-white/10">
             {[
-              { label: 'Titoli', value: titles, gold: (titles ?? 0) > 0 },
+              { label: 'Titoli', value: totalTitles, gold: (totalTitles ?? 0) > 0 },
               { label: 'GP', value: careerRaces },
               { label: 'Vittorie', value: careerWins },
               { label: 'Podi', value: careerPodiums },

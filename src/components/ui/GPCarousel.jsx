@@ -36,7 +36,7 @@ const STATE_BADGE = {
   future: { label: 'In programma', className: 'bg-white/5 text-white/35' },
 };
 
-const GPCard = ({ race, season, state, winner, cardRef }) => {
+const GPCard = ({ race, season, state, winner, winnersLoaded, cardRef }) => {
   const raceUtc = raceUtcOf(race);
   const flagUrl = getFlagUrl(race.Circuit.Location.country);
   const startUtc = weekendStartOf(race);
@@ -105,8 +105,17 @@ const GPCard = ({ race, season, state, winner, cardRef }) => {
                   </p>
                 </div>
               </div>
+            ) : winnersLoaded ? (
+              <p className="text-xs text-white/25">Vincitore non disponibile</p>
             ) : (
-              <p className="text-xs text-white/25">Risultati non disponibili</p>
+              <div className="flex items-center gap-2.5">
+                <div className="h-8 w-0.5 flex-shrink-0 rounded-full bg-white/10" />
+                <div className="space-y-1.5">
+                  <div className="h-2 w-12 rounded bg-white/[0.07]" />
+                  <div className="h-3 w-28 rounded bg-white/10" />
+                  <div className="h-2 w-16 rounded bg-white/[0.07]" />
+                </div>
+              </div>
             )
           ) : state === 'future' ? (
             <div>
@@ -173,7 +182,7 @@ const ArrowButton = ({ dir, onClick }) => (
  * Season calendar as a horizontal strip centred on the current or next GP.
  * Scrolling left walks back through finished races, right through upcoming ones.
  */
-const GPCarousel = ({ races, season, nextRace, liveRound, winners }) => {
+const GPCarousel = ({ races, season, nextRace, liveRound, winners, winnersLoaded }) => {
   const trackRef = useRef(null);
   const activeRef = useRef(null);
 
@@ -224,6 +233,7 @@ const GPCarousel = ({ races, season, nextRace, liveRound, winners }) => {
               season={season}
               state={state}
               winner={winners.get(String(race.round))}
+              winnersLoaded={winnersLoaded}
               cardRef={isFocal ? activeRef : null}
             />
           );
