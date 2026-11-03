@@ -86,6 +86,26 @@ export const getAllRaceResults = (year = CURRENT_YEAR) =>
     d => d.MRData.RaceTable.Races ?? []
   );
 
+// Winner of every race in the season in a single request, keyed by round.
+// Filtering to position 1 keeps this to ~24 rows instead of the full results set.
+export const getSeasonWinners = (year = CURRENT_YEAR) =>
+  get(`/${year}/results/1.json?limit=40`).then(d => {
+    const map = new Map();
+    for (const race of d.MRData.RaceTable.Races ?? []) {
+      const r = race.Results?.[0];
+      if (!r) continue;
+      map.set(String(race.round), {
+        code: r.Driver?.code ?? null,
+        driverId: r.Driver?.driverId ?? null,
+        givenName: r.Driver?.givenName ?? '',
+        familyName: r.Driver?.familyName ?? '',
+        constructorId: r.Constructor?.constructorId ?? '',
+        constructorName: r.Constructor?.name ?? '',
+      });
+    }
+    return map;
+  });
+
 export const getSeasonSchedule = (year = CURRENT_YEAR) =>
   get(`/${year}.json`).then(
     d => d.MRData.RaceTable.Races ?? []
