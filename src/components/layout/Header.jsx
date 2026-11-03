@@ -106,18 +106,32 @@ const Header = () => {
         {/* Right side: Live + season selector */}
         <div className="flex items-center gap-2">
           <LiveIndicator />
-          <select
-            value={season}
-            onChange={(e) => setSeason(Number(e.target.value))}
-            className="bg-f1-surface border border-f1-border rounded-lg px-2 py-1 text-white text-xs font-semibold appearance-none cursor-pointer focus:outline-none focus:border-f1-red/60 tabular-nums"
-            aria-label="Seleziona stagione"
-          >
-            {availableSeasons.map((y) => (
-              <option key={y} value={y}>
-                {y}
-              </option>
-            ))}
-          </select>
+          <div className="relative">
+            <select
+              value={season}
+              onChange={(e) => setSeason(Number(e.target.value))}
+              className="cursor-pointer appearance-none rounded-full border border-f1-border bg-f1-surface py-1 pl-3 pr-7 text-xs font-bold tabular-nums text-white transition-colors hover:border-f1-red/40 focus:border-f1-red/60 focus:outline-none"
+              aria-label="Seleziona stagione"
+            >
+              {availableSeasons.map((y) => (
+                <option key={y} value={y} className="bg-f1-surface text-white">
+                  {y}
+                </option>
+              ))}
+            </select>
+            <svg
+              viewBox="0 0 24 24"
+              className="pointer-events-none absolute right-2 top-1/2 h-3 w-3 -translate-y-1/2 text-f1-muted"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="3"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </div>
         </div>
       </div>
     </header>

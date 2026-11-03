@@ -6,20 +6,19 @@ import { getMeetings, getSessions } from '../../services/openf1';
 import { useSessionResults } from '../../hooks/useSessionResults';
 import { isPast, formatSessionName } from '../../utils/time';
 import { getFlagUrl } from '../../utils/flags';
+import { posColor } from '../../utils/teamColors';
 import Loader from '../../components/ui/Loader';
-
-const posColor = (pos) => {
-  if (pos === 1) return 'text-yellow-400';
-  if (pos === 2) return 'text-gray-300';
-  if (pos === 3) return 'text-amber-600';
-  return 'text-white/60';
-};
+import ProvisionalBadge from '../../components/ui/ProvisionalBadge';
+import { SkeletonRows } from '../../components/ui/Skeleton';
 
 const RaceResultsTable = ({ results, sessionType }) => {
   if (!results || results.length === 0) {
     return (
-      <div className="text-center py-10 text-f1-muted text-sm">
-        Nessun risultato disponibile
+      <div className="py-10 text-center">
+        <p className="text-f1-muted text-sm">Classifica in elaborazione</p>
+        <p className="text-white/25 text-xs mt-1">
+          I dati compaiono appena vengono pubblicati, senza ricaricare
+        </p>
       </div>
     );
   }
@@ -167,12 +166,13 @@ const ResultsRaces = () => {
     setSelectedSession(last ?? null);
   }, [selectedRace?.round, openF1Sessions.length]);
 
-  const { results, loading: loadingResults } = useSessionResults(
-    selectedSession?.session_key,
-    selectedSession?.session_name,
-    selectedRace?.raceName,
-    season
-  );
+  const { results, provisional, loading: loadingResults } = useSessionResults({
+    sessionKey: selectedSession?.session_key,
+    sessionType: selectedSession?.session_name,
+    round: selectedRace?.round ? Number(selectedRace.round) : null,
+    year: season,
+    sessionEnd: selectedSession?.date_end ?? null,
+  });
 
   if (scheduleLoading) return <Loader />;
 
@@ -240,9 +240,12 @@ const ResultsRaces = () => {
         {selectedSession && selectedRace && (
           <div className="flex items-center justify-between mb-4 pb-3 border-b border-f1-border">
             <div>
-              <h2 className="text-white font-bold text-sm">
-                {formatSessionName(selectedSession.session_name)}
-              </h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-white font-bold text-sm">
+                  {formatSessionName(selectedSession.session_name)}
+                </h2>
+                {provisional && results.length > 0 && <ProvisionalBadge />}
+              </div>
               <p className="text-f1-muted text-xs mt-0.5">
                 {selectedRace.raceName.replace(' Grand Prix', ' GP')} · {selectedRace.Circuit.Location.locality}
               </p>
@@ -263,7 +266,7 @@ const ResultsRaces = () => {
             Seleziona una sessione per vedere i risultati
           </p>
         ) : loadingResults ? (
-          <Loader size="inline" />
+          <SkeletonRows rows={8} />
         ) : (
           <RaceResultsTable results={results} sessionType={selectedSession.session_name} />
         )}

@@ -2,22 +2,9 @@ import { useState, useEffect } from 'react';
 import { useConstructorStandings } from '../../hooks/useStandings';
 import { useSeason } from '../../contexts/SeasonContext';
 import { getConstructorSeasonResults } from '../../services/jolpica';
+import { getTeamColor, posColor } from '../../utils/teamColors';
 import Loader from '../../components/ui/Loader';
-
-const TEAM_COLORS = {
-  'red_bull': '#3671C6',
-  'ferrari': '#E8002D',
-  'mercedes': '#27F4D2',
-  'mclaren': '#FF8000',
-  'aston_martin': '#229971',
-  'alpine': '#FF87BC',
-  'williams': '#64C4FF',
-  'haas': '#B6BABD',
-  'rb': '#6692FF',
-  'kick_sauber': '#52E252',
-  'sauber': '#52E252',
-};
-const getTeamColor = (id) => TEAM_COLORS[id] ?? '#6b7280';
+import { SkeletonRows } from '../../components/ui/Skeleton';
 
 const TeamSeasonResults = ({ constructorId, season }) => {
   const [races, setRaces] = useState([]);
@@ -108,7 +95,16 @@ const ResultsTeams = () => {
   const { standings, loading } = useConstructorStandings(season);
   const [selectedTeam, setSelectedTeam] = useState(null);
 
-  if (loading) return <Loader />;
+  if (loading) {
+    return (
+      <div className="space-y-5 pb-4">
+        <h1 className="text-white font-black text-2xl tracking-tight">Scuderie {season}</h1>
+        <div className="bg-f1-surface border border-f1-border rounded-2xl overflow-hidden">
+          <SkeletonRows rows={10} showAvatar={false} />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5 pb-4">
@@ -153,11 +149,7 @@ const ResultsTeams = () => {
                     className="border-b border-f1-border/30 hover:bg-f1-border/20 transition-colors cursor-pointer"
                   >
                     <td className="px-4 py-3">
-                      <span className={`font-black text-base tabular-nums ${
-                        entry.position === '1' ? 'text-yellow-400' :
-                        entry.position === '2' ? 'text-gray-300' :
-                        entry.position === '3' ? 'text-amber-600' : 'text-white/60'
-                      }`}>
+                      <span className={`font-black text-base tabular-nums ${posColor(entry.position)}`}>
                         {entry.position}
                       </span>
                     </td>

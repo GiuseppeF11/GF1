@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import { getLatestDrivers } from '../../services/openf1';
 import {
   getDriverInfo,
@@ -9,7 +9,8 @@ import {
 } from '../../services/jolpica';
 import { useSeason } from '../../contexts/SeasonContext';
 import { DRIVER_STATICS_2026 } from '../../utils/driverStatics2026';
-import Loader from '../../components/ui/Loader';
+import { posColor } from '../../utils/teamColors';
+import Skeleton, { SkeletonRows } from '../../components/ui/Skeleton';
 
 const JOLPIKA_ID_MAP = {
   'norris': 'NOR', 'max_verstappen': 'VER', 'piastri': 'PIA',
@@ -39,11 +40,13 @@ const StatStrip = ({ stats, accentColor }) => (
   </div>
 );
 
-const posColor = p => p === '1' ? 'text-yellow-400' : p === '2' ? 'text-gray-300' : p === '3' ? 'text-amber-600' : 'text-white/70';
-
 const DriverDetail = () => {
   const { driverNumber } = useParams();
   const { season } = useSeason();
+  const navigate = useNavigate();
+  // 'default' means this is the first entry in the history stack (deep link),
+  // so there is nothing to go back to.
+  const canGoBack = useLocation().key !== 'default';
   const [openF1Driver, setOpenF1Driver] = useState(null);
   const [jolpikaDriver, setJolpikaDriver] = useState(null);
   const [seasonResults, setSeasonResults] = useState([]);
@@ -55,6 +58,7 @@ const DriverDetail = () => {
   const jolpikaId = isNumeric ? null : driverNumber;
 
   useEffect(() => {
+    let cancelled = false;
     setLoading(true);
 
     const p1 = getLatestDrivers().then(drivers => {
@@ -70,17 +74,60 @@ const DriverDetail = () => {
       jolpikaId ? getDriverInfo(jolpikaId) : Promise.resolve(null),
       jolpikaId ? getDriverSeasonResults(season, jolpikaId) : Promise.resolve([]),
       jolpikaId ? getDriverCareerSummary(jolpikaId) : Promise.resolve(null),
-      jolpikaId ? getDriverTitles(jolpikaId) : Promise.resolve(0),
-    ]).then(([r1, r2, r3, r4, r5]) => {
+    ]).then(([r1, r2, r3, r4]) => {
+      if (cancelled) return;
       setOpenF1Driver(r1.status === 'fulfilled' ? r1.value : null);
       setJolpikaDriver(r2.status === 'fulfilled' ? r2.value : null);
       setSeasonResults(r3.status === 'fulfilled' ? r3.value : []);
       setCareer(r4.status === 'fulfilled' ? r4.value : null);
-      setTitles(r5.status === 'fulfilled' ? r5.value : 0);
-    }).finally(() => setLoading(false));
+    }).finally(() => { if (!cancelled) setLoading(false); });
+
+    return () => { cancelled = true; };
   }, [driverNumber, season]);
 
-  if (loading) return <Loader />;
+  // Titles need one request per season raced, so they are both slow and the heaviest
+  // use of Jolpica's rate limit. Kept out of the blocking batch and started late, so
+  // the stats and results the page is actually about get the quota first.
+  useEffect(() => {
+    if (!jolpikaId) return;
+    let cancelled = false;
+    setTitles(null);
+    const timer = setTimeout(() => {
+      getDriverTitles(jolpikaId)
+        .then(count => { if (!cancelled) setTitles(count); })
+        .catch(() => { if (!cancelled) setTitles(null); });
+    }, 1200);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [jolpikaId]);
+
+  if (loading) {
+    return (
+      <div className="space-y-6 pb-4">
+        <Skeleton className="h-3 w-20" />
+        <div className="overflow-hidden rounded-3xl border border-f1-border bg-f1-surface/60">
+          <div className="flex flex-col items-start gap-5 p-5 sm:flex-row sm:items-center sm:p-7">
+            <Skeleton className="h-28 w-28 flex-shrink-0 rounded-2xl" />
+            <div className="flex-1 space-y-2">
+              <Skeleton className="h-8 w-16" />
+              <Skeleton className="h-7 w-56 max-w-full" />
+              <Skeleton className="h-3 w-32" />
+            </div>
+          </div>
+          <div className="flex divide-x divide-white/10 border-t border-white/10">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="flex flex-1 flex-col items-center gap-2 py-3">
+                <Skeleton className="h-5 w-8" />
+                <Skeleton className="h-2 w-10" />
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="overflow-hidden rounded-2xl border border-f1-border bg-f1-surface">
+          <SkeletonRows rows={6} showAvatar={false} />
+        </div>
+      </div>
+    );
+  }
 
   // Static fallback for photo/color when OpenF1 is rate-limited
   const acronym = !isNumeric ? (JOLPIKA_ID_MAP[driverNumber] ?? null) : (openF1Driver?.name_acronym ?? null);
@@ -94,11 +141,12 @@ const DriverDetail = () => {
   const teamColorHex = openF1Driver?.team_colour ?? staticData?.team_colour ?? null;
   const teamColor = teamColorHex ? `#${teamColorHex}` : '#6b7280';
 
-  // Career stats — from getDriverCareerSummary (MRData.total counts, no pagination needed)
-  const careerRaces = career?.races ?? 0;
-  const careerWins = career?.wins ?? 0;
-  const careerPodiums = career?.podiums ?? 0;
-  const careerPoles = career?.poles ?? 0;
+  // Career stats — from getDriverCareerSummary (MRData.total counts, no pagination needed).
+  // null means the count could not be fetched, and renders as "—" instead of a false zero.
+  const careerRaces = career?.races ?? null;
+  const careerWins = career?.wins ?? null;
+  const careerPodiums = career?.podiums ?? null;
+  const careerPoles = career?.poles ?? null;
 
   // Season stats
   const seasonRaces = seasonResults.length;
@@ -109,10 +157,19 @@ const DriverDetail = () => {
 
   return (
     <div className="pb-4 space-y-6">
-      {/* Back */}
-      <Link to="/results/drivers" className="inline-flex items-center gap-1 text-f1-muted text-xs hover:text-white transition-colors">
-        ← Classifica Piloti
-      </Link>
+      {/* Back — returns wherever the user came from (standings, a GP, a results table) */}
+      {canGoBack ? (
+        <button
+          onClick={() => navigate(-1)}
+          className="inline-flex items-center gap-1 text-f1-muted text-xs hover:text-white transition-colors"
+        >
+          ← Indietro
+        </button>
+      ) : (
+        <Link to="/results/drivers" className="inline-flex items-center gap-1 text-f1-muted text-xs hover:text-white transition-colors">
+          ← Classifica Piloti
+        </Link>
+      )}
 
       {/* Hero + career stats */}
       <div className="relative rounded-3xl overflow-hidden border" style={{ borderColor: teamColor + '50' }}>
@@ -160,10 +217,10 @@ const DriverDetail = () => {
         </div>
 
         {/* Career stats — inside hero, below identity */}
-        {careerRaces > 0 && (
+        {career && (
           <div className="relative z-10 border-t border-white/10 flex divide-x divide-white/10">
             {[
-              { label: 'Titoli', value: titles ?? '…', gold: (titles ?? 0) > 0 },
+              { label: 'Titoli', value: titles, gold: (titles ?? 0) > 0 },
               { label: 'GP', value: careerRaces },
               { label: 'Vittorie', value: careerWins },
               { label: 'Podi', value: careerPodiums },
@@ -171,7 +228,7 @@ const DriverDetail = () => {
             ].map(({ label, value, gold }) => (
               <div key={label} className="flex-1 py-3 px-1 text-center min-w-0">
                 <div className={`text-xl font-black tabular-nums leading-none ${gold ? 'text-yellow-400' : 'text-white'}`}>
-                  {value}
+                  {value ?? '—'}
                 </div>
                 <div className="text-white/35 text-[9px] mt-1 uppercase tracking-wider">{label}</div>
               </div>
@@ -219,8 +276,7 @@ const DriverDetail = () => {
                     return (
                       <tr
                         key={race.round}
-                        className="border-b border-f1-border/30 hover:bg-f1-border/20 transition-colors cursor-pointer"
-                        onClick={() => {}}
+                        className="border-b border-f1-border/30 hover:bg-f1-border/20 transition-colors"
                       >
                         <td className="px-4 py-2.5">
                           <Link

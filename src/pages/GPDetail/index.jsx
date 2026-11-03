@@ -7,6 +7,8 @@ import { getRaceSessions } from '../../hooks/useSchedule';
 import { getFlagUrl } from '../../utils/flags';
 import { isPast, toItalianTime, toItalianDate, formatGPWeekend } from '../../utils/time';
 import ResultsTable from '../../components/ui/ResultsTable';
+import ProvisionalBadge from '../../components/ui/ProvisionalBadge';
+import { SkeletonRows } from '../../components/ui/Skeleton';
 import Loader from '../../components/ui/Loader';
 
 const SESSION_LABELS = {
@@ -20,6 +22,70 @@ const LiveDot = () => (
     <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-f1-red" />
   </span>
 );
+
+const PODIUM_STYLES = [
+  { accent: '#FFD700', label: '1°', order: 'sm:order-2', scale: 'sm:scale-105' },
+  { accent: '#C0C0C0', label: '2°', order: 'sm:order-1', scale: '' },
+  { accent: '#CD7F32', label: '3°', order: 'sm:order-3', scale: '' },
+];
+
+/** Top three of a finished race or sprint, so the outcome reads at a glance. */
+const Podium = ({ results }) => {
+  const top3 = results.slice(0, 3);
+  if (top3.length < 3) return null;
+
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      {top3.map((r, i) => {
+        const { accent, label, order, scale } = PODIUM_STYLES[i];
+        const driver = r.driver;
+        const teamColor = driver?.team_colour ? `#${driver.team_colour}` : '#6b7280';
+
+        return (
+          <div
+            key={r.driver_number ?? i}
+            className={`relative overflow-hidden rounded-2xl border bg-f1-surface p-4 ${order} ${scale}`}
+            style={{ borderColor: accent + '40' }}
+          >
+            <div className="absolute inset-x-0 top-0 h-0.5" style={{ backgroundColor: accent }} />
+            <div className="flex items-center gap-3">
+              <span className="text-2xl font-black tabular-nums leading-none" style={{ color: accent }}>
+                {label}
+              </span>
+              {driver?.headshot_url ? (
+                <img
+                  src={driver.headshot_url}
+                  alt={driver.full_name}
+                  className="h-12 w-12 flex-shrink-0 rounded-full border-2 bg-f1-border object-cover object-top"
+                  style={{ borderColor: teamColor }}
+                  onError={e => { e.currentTarget.style.display = 'none'; }}
+                />
+              ) : (
+                <div
+                  className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
+                  style={{ backgroundColor: teamColor + '40' }}
+                >
+                  {driver?.name_acronym ?? '?'}
+                </div>
+              )}
+              <div className="min-w-0">
+                <p className="truncate text-sm font-bold leading-tight text-white">
+                  {driver?.full_name ?? `#${r.driver_number}`}
+                </p>
+                <p className="truncate text-[11px] text-f1-muted">{driver?.team_name ?? '—'}</p>
+                {r.points && r.points !== '0' && (
+                  <p className="mt-0.5 text-[11px] font-bold text-f1-red tabular-nums">
+                    +{r.points} pt
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
 
 const GPDetail = () => {
   const { year, round } = useParams();
@@ -85,13 +151,14 @@ const GPDetail = () => {
       })()
     : false;
 
-  const { results, loading: resultsLoading } = useSessionResults(
-    selectedSession?.session_key,
-    selectedSession?.session_name,
-    race?.raceName,
-    Number(year),
-    isSessionLive
-  );
+  const { results, provisional, loading: resultsLoading } = useSessionResults({
+    sessionKey: selectedSession?.session_key,
+    sessionType: selectedSession?.session_name,
+    round: Number(round),
+    year: Number(year),
+    isLive: isSessionLive,
+    sessionEnd: selectedSession?.date_end ?? null,
+  });
 
   if (loading) return <Loader />;
   if (!race) return (
@@ -199,6 +266,12 @@ const GPDetail = () => {
         })}
       </div>
 
+      {/* Podium — finished race or sprint only */}
+      {!resultsLoading && !isSessionLive &&
+        (selectedSession?.session_name === 'Race' || selectedSession?.session_name === 'Sprint') && (
+          <Podium results={results} />
+        )}
+
       {/* Results panel */}
       {selectedSession && (
         <div className="bg-f1-surface border border-f1-border rounded-2xl p-4">
@@ -214,13 +287,14 @@ const GPDetail = () => {
                   <span className="text-f1-red text-[9px] font-bold uppercase tracking-widest">Live</span>
                 </span>
               )}
+              {!isSessionLive && provisional && results.length > 0 && <ProvisionalBadge />}
             </div>
             <span className="text-f1-muted text-xs">
               {toItalianDate(selectedSession.date_start, 'EEE d MMM · HH:mm')}
             </span>
           </div>
           {resultsLoading ? (
-            <Loader size="inline" />
+            <SkeletonRows rows={8} />
           ) : (
             <div className="overflow-y-auto max-h-80">
               <ResultsTable results={results} sessionType={selectedSession.session_name} />
