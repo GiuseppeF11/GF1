@@ -4,21 +4,15 @@ import { useCurrentSeason } from '../../hooks/useCurrentSeason';
 import { useDriverStandings, useConstructorStandings } from '../../hooks/useStandings';
 import { useSessionResults } from '../../hooks/useSessionResults';
 import { useSeason } from '../../contexts/SeasonContext';
-import { useSchedule } from '../../hooks/useSchedule';
+import { useSchedule, findRoundByDate } from '../../hooks/useSchedule';
 import { useDriverPhotos } from '../../hooks/useDriverPhotos';
 import CountdownTimer from '../../components/ui/CountdownTimer';
 import ResultsTable from '../../components/ui/ResultsTable';
-import Loader from '../../components/ui/Loader';
+import ProvisionalBadge from '../../components/ui/ProvisionalBadge';
+import { SkeletonRows } from '../../components/ui/Skeleton';
 import { toItalianTime, toItalianDate, isPast } from '../../utils/time';
 import { getFlagUrl } from '../../utils/flags';
-
-const TEAM_COLORS = {
-  'red_bull': '#3671C6', 'ferrari': '#E8002D', 'mercedes': '#27F4D2',
-  'mclaren': '#FF8000', 'aston_martin': '#229971', 'alpine': '#FF87BC',
-  'williams': '#64C4FF', 'haas': '#B6BABD', 'rb': '#6692FF',
-  'kick_sauber': '#52E252', 'sauber': '#52E252',
-};
-const getTeamColor = (id) => TEAM_COLORS[id] ?? '#6b7280';
+import { getTeamColor, posColor } from '../../utils/teamColors';
 
 /* ─── Hero: Next GP ───────────────────────────────────────────── */
 const NextGPHero = ({ race, season, totalRaces }) => {
@@ -204,7 +198,7 @@ const StandingsSection = ({ season }) => {
       <div className="bg-f1-surface border border-f1-border rounded-2xl overflow-hidden">
         {tab === 'pilots' ? (
           dLoad
-            ? <div className="p-8 text-center text-f1-muted text-sm">Caricamento…</div>
+            ? <SkeletonRows rows={PREVIEW} />
             : drivers.length === 0
             ? <div className="p-8 text-center text-f1-muted text-sm">Nessun dato disponibile</div>
             : (
@@ -224,11 +218,9 @@ const StandingsSection = ({ season }) => {
                     const photo = photoMap.get(d.code);
                     return (
                       <tr key={d.driverId} className="border-b border-f1-border/30 hover:bg-f1-border/20 transition-colors">
-                        <td className={`px-3 py-2 font-black text-sm tabular-nums ${
-                          entry.position === '1' ? 'text-yellow-400' :
-                          entry.position === '2' ? 'text-gray-300' :
-                          entry.position === '3' ? 'text-amber-600' : 'text-white/50'
-                        }`}>{entry.position}</td>
+                        <td className={`px-3 py-2 font-black text-sm tabular-nums ${posColor(entry.position)}`}>
+                          {entry.position}
+                        </td>
                         <td className="px-3 py-2">
                           <div className="flex items-center gap-2.5">
                             <div className="w-0.5 h-8 rounded-full flex-shrink-0" style={{ backgroundColor: teamColor }} />
@@ -269,7 +261,7 @@ const StandingsSection = ({ season }) => {
             )
         ) : (
           cLoad
-            ? <div className="p-8 text-center text-f1-muted text-sm">Caricamento…</div>
+            ? <SkeletonRows rows={PREVIEW} showAvatar={false} />
             : constructors.length === 0
             ? <div className="p-8 text-center text-f1-muted text-sm">Nessun dato disponibile</div>
             : (
@@ -287,11 +279,9 @@ const StandingsSection = ({ season }) => {
                     const teamColor = getTeamColor(c.constructorId);
                     return (
                       <tr key={c.constructorId} className="border-b border-f1-border/30 hover:bg-f1-border/20 transition-colors">
-                        <td className={`px-3 py-2 font-black text-sm tabular-nums ${
-                          entry.position === '1' ? 'text-yellow-400' :
-                          entry.position === '2' ? 'text-gray-300' :
-                          entry.position === '3' ? 'text-amber-600' : 'text-white/50'
-                        }`}>{entry.position}</td>
+                        <td className={`px-3 py-2 font-black text-sm tabular-nums ${posColor(entry.position)}`}>
+                          {entry.position}
+                        </td>
                         <td className="px-3 py-2">
                           <div className="flex items-center gap-2">
                             <div className="w-0.5 h-5 rounded-full flex-shrink-0" style={{ backgroundColor: teamColor }} />
@@ -388,15 +378,18 @@ const UpcomingCalendar = ({ races, season }) => {
 };
 
 /* ─── Last session results ────────────────────────────────────── */
-const LastSessionWidget = ({ session, season }) => {
-  // OpenF1 sessions don't have meeting_name — use country_name to find the round via findRound
-  const nameHint = session?.country_name ?? session?.location ?? null;
-  const { results, loading } = useSessionResults(
-    session?.session_key,
-    session?.session_name,
-    nameHint,
-    season
-  );
+const LastSessionWidget = ({ session, season, races }) => {
+  // OpenF1 sessions carry no round — resolve it from the session date, falling back
+  // to the country name only when the schedule has not loaded yet.
+  const round = findRoundByDate(races, session?.date_start);
+  const { results, provisional, loading } = useSessionResults({
+    sessionKey: session?.session_key,
+    sessionType: session?.session_name,
+    round,
+    meetingName: session?.country_name ?? session?.location ?? null,
+    year: season,
+    sessionEnd: session?.date_end ?? null,
+  });
 
   if (!session) return null;
 
@@ -414,7 +407,10 @@ const LastSessionWidget = ({ session, season }) => {
     <section>
       <div className="flex items-center justify-between mb-3">
         <div>
-          <h2 className="text-white font-bold text-base">Ultima sessione</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-white font-bold text-base">Ultima sessione</h2>
+            {provisional && results.length > 0 && <ProvisionalBadge />}
+          </div>
           <p className="text-f1-muted text-xs">
             {sessionLabel} · {meetingLabel}
           </p>
@@ -425,7 +421,7 @@ const LastSessionWidget = ({ session, season }) => {
       </div>
       <div className="bg-f1-surface border border-f1-border rounded-2xl p-4">
         {loading ? (
-          <Loader size="inline" />
+          <SkeletonRows rows={5} />
         ) : results.length > 0 ? (
           <>
             <ResultsTable results={results.slice(0, 5)} sessionType={session.session_name} compact />
@@ -439,7 +435,12 @@ const LastSessionWidget = ({ session, season }) => {
             )}
           </>
         ) : (
-          <p className="text-center text-f1-muted text-sm py-6">Nessun dato disponibile</p>
+          <div className="py-6 text-center">
+            <p className="text-f1-muted text-sm">Classifica in elaborazione</p>
+            <p className="text-white/25 text-xs mt-1">
+              I dati compaiono appena vengono pubblicati, senza ricaricare
+            </p>
+          </div>
         )}
       </div>
     </section>
@@ -463,7 +464,7 @@ const Home = () => {
 
       {/* Last session — full width on all viewports */}
       {!sessionLoading && (
-        <LastSessionWidget session={lastSession} season={season} />
+        <LastSessionWidget session={lastSession} season={season} races={races} />
       )}
 
       {/* 2-column grid */}

@@ -44,10 +44,10 @@ const BottomNav = () => {
     <nav className="fixed bottom-0 left-0 right-0 z-50 bg-f1-dark/95 backdrop-blur border-t border-f1-border md:hidden safe-area-inset-bottom">
       <div className="flex">
         {TABS.map(({ to, label, icon: Icon, exact }) => {
-          const active = exact ? pathname === to : pathname.startsWith(to.replace(/\/[^/]+$/, '') || to);
+          const section = to.split('/').slice(0, 2).join('/');
           const isActive = exact
             ? pathname === to
-            : pathname === to || pathname.startsWith(to.split('/').slice(0, 2).join('/') + '/') || pathname === to.split('/').slice(0, 2).join('/');
+            : pathname === section || pathname.startsWith(`${section}/`);
 
           return (
             <NavLink

@@ -1,11 +1,5 @@
 import { Link } from 'react-router-dom';
-
-const posColor = (pos) => {
-  if (pos === 1) return 'text-yellow-400';
-  if (pos === 2) return 'text-gray-300';
-  if (pos === 3) return 'text-amber-600';
-  return 'text-white/60';
-};
+import { posColor } from '../../utils/teamColors';
 
 const ResultsTable = ({ results, sessionType = 'Race', compact = false }) => {
   if (!results || results.length === 0) {

@@ -3,8 +3,68 @@ import axios from 'axios';
 const BASE = 'https://api.jolpi.ca/ergast/f1';
 const CURRENT_YEAR = new Date().getFullYear();
 
-const get = (path) =>
-  axios.get(`${BASE}${path}`).then(r => r.data);
+// Jolpica throttles anonymous clients at roughly 4 requests/second. A driver page alone
+// fans out to 20+ calls, so without pacing they burst straight into 429s — and because
+// callers degrade a failed request to 0, that surfaced as wrong career stats rather than
+// as an error. Every request goes through this queue instead.
+const RATE_MS = 260;
+const MAX_CONCURRENT = 2;
+const MAX_RETRIES = 3;
+
+let active = 0;
+let nextSlot = 0;
+const queue = [];
+
+const pump = () => {
+  if (queue.length === 0 || active >= MAX_CONCURRENT) return;
+  const now = Date.now();
+  const startAt = Math.max(now, nextSlot);
+  nextSlot = startAt + RATE_MS;
+
+  const job = queue.shift();
+  active++;
+  setTimeout(() => {
+    job.run()
+      .then(job.resolve, job.reject)
+      .finally(() => { active--; pump(); });
+  }, startAt - now);
+
+  pump();
+};
+
+const enqueue = (run) =>
+  new Promise((resolve, reject) => {
+    queue.push({ run, resolve, reject });
+    pump();
+  });
+
+// A 429 from Jolpica arrives without CORS headers, so the browser reports it as a
+// network failure with no status — both cases are retried.
+const isRetryable = (err) => {
+  const status = err?.response?.status;
+  return status === 429 || status === 503 || status == null;
+};
+
+const request = (path, attempt = 0) =>
+  enqueue(() => axios.get(`${BASE}${path}`).then(r => r.data)).catch(err => {
+    if (attempt < MAX_RETRIES && isRetryable(err)) {
+      const backoff = 700 * 2 ** attempt + Math.random() * 300;
+      return new Promise(r => setTimeout(r, backoff)).then(() => request(path, attempt + 1));
+    }
+    throw err;
+  });
+
+// Collapses duplicate concurrent requests for the same path — several hooks ask for
+// the schedule and the same driver's data at once.
+const inFlight = new Map();
+
+const get = (path) => {
+  const pending = inFlight.get(path);
+  if (pending) return pending;
+  const p = request(path).finally(() => inFlight.delete(path));
+  inFlight.set(path, p);
+  return p;
+};
 
 export const getDriverStandings = (year = CURRENT_YEAR) =>
   get(`/${year}/driverStandings.json`).then(
@@ -46,21 +106,12 @@ export const getDriverSeasonResults = (year = CURRENT_YEAR, driverId) =>
     d => d.MRData.RaceTable.Races ?? []
   );
 
-const getWithRetry = (path, retries = 2, delayMs = 600) =>
-  get(path).catch(async (err) => {
-    if (retries > 0 && err?.response?.status === 429) {
-      await new Promise(res => setTimeout(res, delayMs));
-      return getWithRetry(path, retries - 1, delayMs * 2);
-    }
-    throw err;
-  });
-
 export const getDriverCareerStats = async (driverId) => {
   // Hybrid era 2014-2025 covers all currently active drivers' championship years
   const years = Array.from({ length: 12 }, (_, i) => 2014 + i);
   const lists = await Promise.all(
     years.map(y =>
-      getWithRetry(`/${y}/drivers/${driverId}/driverStandings.json`)
+      get(`/${y}/drivers/${driverId}/driverStandings.json`)
         .then(d => d.MRData.StandingsTable.StandingsLists?.[0] ?? null)
         .catch(() => null)
     )
@@ -76,22 +127,36 @@ export const getConstructorSeasonResults = (year = CURRENT_YEAR, constructorId) 
 // Career summary for a driver using position-filtered endpoints.
 // Each call fetches limit=1 — we only need MRData.total, not the actual records.
 // Titles are fetched separately via getDriverTitles (year-by-year, required by Jolpica).
+// A failed count returns null rather than 0: showing "—" is honest, while a zero
+// is indistinguishable from a real result and silently misreports a driver's career.
 export const getDriverCareerSummary = async (driverId) => {
   const total = (d) => parseInt(d.MRData?.total ?? '0');
+  const count = (path) => get(path).then(total).catch(() => null);
   const [races, wins, p2, p3, poles] = await Promise.all([
-    get(`/drivers/${driverId}/results.json?limit=1`).then(total).catch(() => 0),
-    get(`/drivers/${driverId}/results/1.json?limit=1`).then(total).catch(() => 0),
-    get(`/drivers/${driverId}/results/2.json?limit=1`).then(total).catch(() => 0),
-    get(`/drivers/${driverId}/results/3.json?limit=1`).then(total).catch(() => 0),
-    get(`/drivers/${driverId}/qualifying/1.json?limit=1`).then(total).catch(() => 0),
+    count(`/drivers/${driverId}/results.json?limit=1`),
+    count(`/drivers/${driverId}/results/1.json?limit=1`),
+    count(`/drivers/${driverId}/results/2.json?limit=1`),
+    count(`/drivers/${driverId}/results/3.json?limit=1`),
+    count(`/drivers/${driverId}/qualifying/1.json?limit=1`),
   ]);
-  return { races, wins, podiums: wins + p2 + p3, poles };
+  const podiums = [wins, p2, p3].some(v => v == null)
+    ? null
+    : wins + p2 + p3;
+  return { races, wins, podiums, poles };
 };
 
-// Titles: Jolpica requires season_year — year-by-year check in small batches to avoid 429s.
+export const getDriverSeasons = (driverId) =>
+  get(`/drivers/${driverId}/seasons.json?limit=100`).then(
+    d => (d.MRData.SeasonTable.Seasons ?? []).map(s => Number(s.season))
+  );
+
+// Titles: Jolpica rejects driverStandings without a season_year, so this is one request
+// per season. The seasons the driver actually raced come first — querying a fixed year
+// range instead wastes most calls on seasons before their debut and triggers 429s that
+// then slow down every other Jolpica request on the page.
 // Cached in localStorage (7 day TTL) — past-season titles never change.
 export const getDriverTitles = async (driverId) => {
-  const CACHE_KEY = `gf1_titles_v2_${driverId}`;
+  const CACHE_KEY = `gf1_titles_v3_${driverId}`;
   const TTL_MS = 7 * 24 * 60 * 60 * 1000;
   try {
     const raw = localStorage.getItem(CACHE_KEY);
@@ -101,27 +166,27 @@ export const getDriverTitles = async (driverId) => {
     }
   } catch {}
 
-  const lastYear = new Date().getFullYear() - 1;
-  const years = Array.from({ length: lastYear - 1999 }, (_, i) => 2000 + i);
-  const standings = [];
-  const BATCH = 5;
-  for (let i = 0; i < years.length; i += BATCH) {
-    const batch = years.slice(i, i + BATCH);
-    const results = await Promise.all(
-      batch.map(y =>
-        getWithRetry(`/${y}/drivers/${driverId}/driverStandings.json`)
-          .then(d => d.MRData.StandingsTable.StandingsLists?.[0]?.DriverStandings?.[0]?.position ?? null)
-          .catch(() => null)
-      )
-    );
-    standings.push(...results);
-    if (i + BATCH < years.length) await new Promise(r => setTimeout(r, 300));
-  }
+  // The current season is excluded: its standings leader is not champion yet.
+  const currentYear = new Date().getFullYear();
+  const seasons = await getDriverSeasons(driverId).catch(() => null);
+  if (seasons == null) return null;
+
+  const years = seasons.filter(y => y < currentYear);
+  if (years.length === 0) return 0;
+
+  const standings = await Promise.all(
+    years.map(y =>
+      get(`/${y}/drivers/${driverId}/driverStandings.json`)
+        .then(d => d.MRData.StandingsTable.StandingsLists?.[0]?.DriverStandings?.[0]?.position ?? null)
+        .catch(() => undefined)
+    )
+  );
+
+  // undefined marks a request that never answered. A partial count would understate
+  // the driver's titles, so it is reported as unknown instead of as a number.
+  if (standings.some(s => s === undefined)) return null;
 
   const count = standings.filter(pos => pos === '1').length;
-  const responded = standings.filter(s => s !== null).length;
-  if (responded >= years.length / 2) {
-    try { localStorage.setItem(CACHE_KEY, JSON.stringify({ count, ts: Date.now() })); } catch {}
-  }
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify({ count, ts: Date.now() })); } catch {}
   return count;
 };

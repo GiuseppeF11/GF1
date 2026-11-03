@@ -30,6 +30,29 @@ export const useSchedule = (year = new Date().getFullYear()) => {
   return { races, nextRace, lastRace, upcomingRaces, loading };
 };
 
+/**
+ * Resolve the Jolpica round whose race weekend contains the given UTC instant.
+ * Matching on the date is unambiguous, unlike matching on country or race name —
+ * Italy, the USA and others host more than one GP per season.
+ */
+export const findRoundByDate = (races, utcStr) => {
+  if (!utcStr || races.length === 0) return null;
+  const t = new Date(utcStr).getTime();
+  if (Number.isNaN(t)) return null;
+
+  const HOUR = 60 * 60 * 1000;
+  const match = races.find(r => {
+    const fp1 = r.FirstPractice;
+    const start = fp1
+      ? new Date(`${fp1.date}T${fp1.time}`).getTime()
+      : new Date(`${r.date}T${r.time || '00:00:00Z'}`).getTime();
+    const end = new Date(`${r.date}T${r.time || '00:00:00Z'}`).getTime() + 4 * HOUR;
+    return t >= start - HOUR && t <= end;
+  });
+
+  return match?.round ? Number(match.round) : null;
+};
+
 /** Convert Jolpica race to pseudo-sessions for GPCard */
 export const getRaceSessions = (race) => {
   if (!race) return [];
