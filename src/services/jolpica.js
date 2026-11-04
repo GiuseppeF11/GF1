@@ -121,46 +121,27 @@ export const getDriverInfo = (driverId) =>
     d => d.MRData.DriverTable.Drivers[0] ?? null
   );
 
-export const getDriverSeasonResults = (year = CURRENT_YEAR, driverId) =>
-  get(`/${year}/drivers/${driverId}/results.json?limit=30`).then(
-    d => d.MRData.RaceTable.Races ?? []
-  );
-
-export const getDriverCareerStats = async (driverId) => {
-  // Hybrid era 2014-2025 covers all currently active drivers' championship years
-  const years = Array.from({ length: 12 }, (_, i) => 2014 + i);
-  const lists = await Promise.all(
-    years.map(y =>
-      get(`/${y}/drivers/${driverId}/driverStandings.json`)
-        .then(d => d.MRData.StandingsTable.StandingsLists?.[0] ?? null)
-        .catch(() => null)
-    )
-  );
-  return lists.filter(Boolean);
-};
-
 export const getConstructorSeasonResults = (year = CURRENT_YEAR, constructorId) =>
   get(`/${year}/constructors/${constructorId}/results.json?limit=500`).then(
     d => d.MRData.RaceTable.Races ?? []
   );
 
-// Career summary for a driver using position-filtered endpoints.
-// Each call fetches limit=1 — we only need MRData.total, not the actual records.
-// Titles are fetched separately via getDriverTitles (year-by-year, required by Jolpica).
-// A failed count returns null rather than 0: showing "—" is honest, while a zero
-// is indistinguishable from a real result and silently misreports a driver's career.
-export const getDriverCareerSummary = async (driverId) => {
-  const total = (d) => parseInt(d.MRData?.total ?? '0');
-  const count = (path) => get(path).then(total).catch(() => null);
-  const [races, wins, p2, p3, poles] = await Promise.all([
-    count(`/drivers/${driverId}/results.json?limit=1`),
-    count(`/drivers/${driverId}/results/1.json?limit=1`),
-    count(`/drivers/${driverId}/results/2.json?limit=1`),
-    count(`/drivers/${driverId}/results/3.json?limit=1`),
-    count(`/drivers/${driverId}/qualifying/1.json?limit=1`),
-  ]);
-  const podiums = [wins, p2, p3].some(v => v == null)
-    ? null
-    : wins + p2 + p3;
-  return { races, wins, podiums, poles };
+// Every race a driver ever entered. Jolpica caps limit at 100, so a long career
+// takes a few pages — but this one paginated call replaces the per-position count
+// requests and the per-season results request, and it carries grid, status and
+// constructor, which is everything the driver page needs apart from poles.
+const RESULTS_PAGE = 100;
+const MAX_RESULT_PAGES = 12;
+
+export const getDriverCareerResults = async (driverId) => {
+  const races = [];
+  for (let page = 0; page < MAX_RESULT_PAGES; page++) {
+    const d = await get(
+      `/drivers/${driverId}/results.json?limit=${RESULTS_PAGE}&offset=${page * RESULTS_PAGE}`
+    );
+    const batch = d.MRData.RaceTable.Races ?? [];
+    races.push(...batch);
+    if (batch.length < RESULTS_PAGE) break;
+  }
+  return races;
 };
