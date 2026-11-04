@@ -6,14 +6,15 @@
 
     <!-- PWA / splash screen -->
     <link rel="manifest" href="/manifest.json" />
-    <meta name="theme-color" content="#0a0a0a" />
+    <meta name="theme-color" content="#15151e" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="GF1" />
 
-    <!-- Icons -->
+    <!-- Icons. Safari ignores SVG for apple-touch-icon and falls back to a screenshot
+         of the page, so the home-screen icon has to be a PNG. -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="apple-touch-icon" href="/favicon.svg" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
 
     <!-- SEO / social -->
     <meta name="description" content="GF1 — Segui la Formula 1 in tempo reale: calendario, risultati, classifiche piloti e scuderie." />

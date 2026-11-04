@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Maskable variant: Android crops this to the launcher's own shape (circle,
+       squircle, teardrop), keeping only the central 80%. So the background runs edge
+       to edge with no rounded corners, the red top bar is gone — it sits in the part
+       that always gets cut — and the wordmark is scaled to 0.76 to clear the safe
+       zone with margin. The square icon keeps those details; this one cannot. -->
+  <rect width="100" height="100" fill="#0d0d0d"/>
+  <g transform="translate(50,50) scale(0.76) translate(-50,-50)">
+    <g transform="translate(49.44,63.62) skewX(-9)">
+      <text text-anchor="middle" y="0" dx="-24"
+        font-family="'Arial Black',Impact,Arial,sans-serif"
+        font-size="38" font-weight="900" fill="#ffffff">G</text>
+      <text text-anchor="middle" y="0" dx="2"
+        font-family="'Arial Black',Impact,Arial,sans-serif"
+        font-size="38" font-weight="900" fill="#E8002D">F</text>
+      <text text-anchor="middle" y="0" dx="27"
+        font-family="'Arial Black',Impact,Arial,sans-serif"
+        font-size="38" font-weight="900" fill="#ffffff">1</text>
+    </g>
+  </g>
+</svg>
