@@ -4,6 +4,7 @@ const TABS = [
   { to: '/results/races', label: 'Gare' },
   { to: '/results/drivers', label: 'Piloti' },
   { to: '/results/teams', label: 'Scuderie' },
+  { to: '/results/albo', label: "Albo d'oro" },
 ];
 
 const Results = () => {

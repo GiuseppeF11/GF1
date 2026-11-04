@@ -9,6 +9,7 @@ import Results from './pages/Results';
 import ResultsRaces from './pages/Results/Races';
 import ResultsDrivers from './pages/Results/Drivers';
 import ResultsTeams from './pages/Results/Teams';
+import HallOfFame from './pages/Results/HallOfFame';
 import DriverDetail from './pages/DriverDetail';
 import GPDetail from './pages/GPDetail';
 
@@ -26,6 +27,7 @@ const AppRoutes = () => {
           <Route path="races" element={<ResultsRaces />} />
           <Route path="drivers" element={<ResultsDrivers />} />
           <Route path="teams" element={<ResultsTeams />} />
+          <Route path="albo" element={<HallOfFame />} />
         </Route>
         <Route path="/driver/:driverNumber" element={<DriverDetail />} />
         <Route path="/gp/:year/:round" element={<GPDetail />} />

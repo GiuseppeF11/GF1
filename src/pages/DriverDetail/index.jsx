@@ -5,8 +5,8 @@ import {
   getDriverInfo,
   getDriverSeasonResults,
   getDriverCareerSummary,
-  getDriverTitles,
 } from '../../services/jolpica';
+import { WORLD_CHAMPIONS } from '../../utils/champions';
 import { useSeason } from '../../contexts/SeasonContext';
 import { useClinchedChampion } from '../../hooks/useChampion';
 import { DRIVER_STATICS_2026 } from '../../utils/driverStatics2026';
@@ -52,7 +52,6 @@ const DriverDetail = () => {
   const [jolpikaDriver, setJolpikaDriver] = useState(null);
   const [seasonResults, setSeasonResults] = useState([]);
   const [career, setCareer] = useState(null);
-  const [titles, setTitles] = useState(null);
   const [loading, setLoading] = useState(true);
 
   const isNumeric = /^\d+$/.test(driverNumber);
@@ -86,29 +85,19 @@ const DriverDetail = () => {
     return () => { cancelled = true; };
   }, [driverNumber, season]);
 
-  // Titles need one request per season raced, so they are both slow and the heaviest
-  // use of Jolpica's rate limit. Kept out of the blocking batch and started late, so
-  // the stats and results the page is actually about get the quota first.
-  useEffect(() => {
-    if (!jolpikaId) return;
-    let cancelled = false;
-    setTitles(null);
-    const timer = setTimeout(() => {
-      getDriverTitles(jolpikaId)
-        .then(count => { if (!cancelled) setTitles(count); })
-        .catch(() => { if (!cancelled) setTitles(null); });
-    }, 1200);
-    return () => { cancelled = true; clearTimeout(timer); };
-  }, [jolpikaId]);
+  // Titles come from the static champions list rather than the API: Jolpica needs
+  // one driverStandings request per season raced, which made this the page's heaviest
+  // user of the rate limit and left the count showing a dash whenever it got throttled.
+  const historicTitles = WORLD_CHAMPIONS.filter(c => c.driverId === jolpikaId).length;
 
-  // getDriverTitles only counts completed seasons, since mid-season the standings
-  // leader is not champion yet. Add the running season once the title is decided.
+  // That list only covers completed seasons, since mid-season the standings leader is
+  // not champion yet. Add the running one once the title is mathematically decided.
   const clinchedChampionId = useClinchedChampion(season);
   const wonRunningSeason =
     season === new Date().getFullYear() &&
     clinchedChampionId != null &&
     clinchedChampionId === jolpikaId;
-  const totalTitles = titles == null ? null : titles + (wonRunningSeason ? 1 : 0);
+  const totalTitles = historicTitles + (wonRunningSeason ? 1 : 0);
 
   if (loading) {
     return (
