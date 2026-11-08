@@ -161,7 +161,7 @@ const GPDetail = () => {
       })()
     : false;
 
-  const { results, provisional, timingUnavailable, loading: resultsLoading } = useSessionResults({
+  const { results, provisional, awaitingTimes, timingUnavailable, loading: resultsLoading } = useSessionResults({
     sessionKey: selectedSession?.session_key,
     sessionType: selectedSession?.session_name,
     round: Number(round),
@@ -300,9 +300,14 @@ const GPDetail = () => {
               )}
               {!isSessionLive && provisional && results.length > 0 && <ProvisionalBadge />}
             </div>
-            <span className="text-f1-muted text-xs">
-              {toItalianDate(selectedSession.date_start, 'EEE d MMM · HH:mm')}
-            </span>
+            <div className="text-right">
+              <span className="text-f1-muted text-xs">
+                {toItalianDate(selectedSession.date_start, 'EEE d MMM · HH:mm')}
+              </span>
+              {awaitingTimes && (
+                <p className="text-[10px] text-white/30">Tempi non ancora pubblicati</p>
+              )}
+            </div>
           </div>
           {resultsLoading ? (
             <SkeletonRows rows={8} />

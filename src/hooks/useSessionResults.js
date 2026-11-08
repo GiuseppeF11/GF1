@@ -148,6 +148,7 @@ export const useSessionResults = ({
 }) => {
   const [results, setResults] = useState([]);
   const [provisional, setProvisional] = useState(false);
+  const [awaitingTimes, setAwaitingTimes] = useState(false);
   const [timingUnavailable, setTimingUnavailable] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -236,6 +237,7 @@ export const useSessionResults = ({
         setError(null);
         setResults([]);
         setProvisional(false);
+        setAwaitingTimes(false);
         setTimingUnavailable(false);
       }
 
@@ -244,6 +246,7 @@ export const useSessionResults = ({
         if (cancelled) return;
         setResults(data);
         setProvisional(isProvisional);
+        setAwaitingTimes(!!partial);
         setTimingUnavailable(!!unavailable);
 
         if (isLive) {
@@ -272,5 +275,5 @@ export const useSessionResults = ({
     };
   }, [sessionKey, sessionType, round, meetingName, year, isLive, sessionEnd]);
 
-  return { results, provisional, timingUnavailable, loading, error };
+  return { results, provisional, awaitingTimes, timingUnavailable, loading, error };
 };
