@@ -128,20 +128,34 @@ const GPDetail = () => {
 
   useEffect(() => {
     if (!meeting?.meeting_key) return;
+    let cancelled = false;
     setSessionsLoading(true);
     getSessions({ meeting_key: meeting.meeting_key })
-      .then(data => {
-        setOpenF1Sessions(data);
-        const now = new Date();
-        const active = data.find(s =>
-          new Date(s.date_start) <= now && now <= new Date(s.date_end)
-        );
-        const completed = data.filter(s => isPast(s.date_end));
-        setSelectedSession(active ?? completed[completed.length - 1] ?? null);
-      })
-      .catch(console.error)
-      .finally(() => setSessionsLoading(false));
+      .then(data => { if (!cancelled) setOpenF1Sessions(data); })
+      // OpenF1 answers 401 while a session is live; the schedule covers for it.
+      .catch(() => { if (!cancelled) setOpenF1Sessions([]); })
+      .finally(() => { if (!cancelled) setSessionsLoading(false); });
+    return () => { cancelled = true; };
   }, [meeting?.meeting_key]);
+
+  // Pick the session to show. Driven by whatever list is available rather than by
+  // OpenF1, so the page still opens on the right session when only the calendar is.
+  useEffect(() => {
+    if (!race) return;
+    const list = openF1Sessions.length > 0 ? openF1Sessions : getRaceSessions(race);
+    const now = new Date();
+    const active = list.find(s =>
+      new Date(s.date_start) <= now && now <= new Date(s.date_end)
+    );
+    const completed = list.filter(s => isPast(s.date_end));
+    setSelectedSession(active ?? completed[completed.length - 1] ?? null);
+  }, [race?.round, openF1Sessions.length]);
+
+  const isRaceLikeSession =
+    selectedSession?.session_name === 'Race' ||
+    selectedSession?.session_name === 'Sprint' ||
+    selectedSession?.session_name === 'Qualifying' ||
+    selectedSession?.session_name === 'Sprint Qualifying';
 
   // Determine if selected session is currently live
   const isSessionLive = selectedSession
@@ -151,7 +165,7 @@ const GPDetail = () => {
       })()
     : false;
 
-  const { results, provisional, loading: resultsLoading } = useSessionResults({
+  const { results, provisional, timingUnavailable, loading: resultsLoading } = useSessionResults({
     sessionKey: selectedSession?.session_key,
     sessionType: selectedSession?.session_name,
     round: Number(round),
@@ -226,8 +240,9 @@ const GPDetail = () => {
           const past = isPast(s.date_end ?? s.date_start);
           const isActive = isPast(s.date_start) && !isPast(s.date_end);
           const isSelected = selectedSession?.session_key === s.session_key || selectedSession?.session_name === s.session_name;
-          const hasOpenF1 = openF1Sessions.length > 0;
-          const isClickable = hasOpenF1 && (past || isActive);
+          // Any session that has started can be opened: race and qualifying come from
+          // Jolpica, so they do not need OpenF1 to have answered.
+          const isClickable = past || isActive;
 
           return (
             <button
@@ -295,6 +310,16 @@ const GPDetail = () => {
           </div>
           {resultsLoading ? (
             <SkeletonRows rows={8} />
+          ) : results.length === 0 && timingUnavailable ? (
+            <div className="py-10 text-center">
+              <p className="text-sm text-f1-muted">Dati di cronometraggio non disponibili</p>
+              <p className="mx-auto mt-1 max-w-sm text-xs text-white/25">
+                OpenF1 chiude l'accesso pubblico mentre una sessione è in corso.
+                {isRaceLikeSession
+                  ? ' La classifica ufficiale compare qui appena viene pubblicata.'
+                  : ' I tempi torneranno visibili a weekend concluso.'}
+              </p>
+            </div>
           ) : (
             <div className="overflow-y-auto max-h-80">
               <ResultsTable results={results} sessionType={selectedSession.session_name} />

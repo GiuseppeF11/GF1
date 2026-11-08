@@ -53,30 +53,72 @@ export const findRoundByDate = (races, utcStr) => {
   return match?.round ? Number(match.round) : null;
 };
 
-/** Convert Jolpica race to pseudo-sessions for GPCard */
+// Jolpica publishes a start time per session but no end time. These are the regulation
+// lengths, and they are what lets the app tell a finished session from a running one
+// when OpenF1 — which does carry real end times — cannot be reached.
+const SESSION_MINUTES = {
+  'Practice 1': 60,
+  'Practice 2': 60,
+  'Practice 3': 60,
+  'Sprint Qualifying': 45,
+  'Sprint': 30,
+  'Qualifying': 60,
+  'Race': 120,
+};
+
+const endOf = (startUtc, name) => {
+  const end = new Date(startUtc);
+  if (Number.isNaN(end.getTime())) return startUtc;
+  end.setMinutes(end.getMinutes() + (SESSION_MINUTES[name] ?? 60));
+  return end.toISOString();
+};
+
+/** Convert a Jolpica race into OpenF1-shaped sessions. */
 export const getRaceSessions = (race) => {
   if (!race) return [];
   const sessions = [];
-  const push = (name, d) => d && sessions.push({
-    session_key: name,
-    session_name: name,
-    date_start: `${d.date}T${d.time}`,
-    date_end: `${d.date}T${d.time}`,
-  });
+  // Carried so a session picked up from the calendar can still be labelled with its
+  // Grand Prix, the way an OpenF1 session would be.
+  const place = {
+    country_name: race.Circuit?.Location?.country ?? null,
+    location: race.Circuit?.Location?.locality ?? null,
+  };
+  const push = (name, d) => {
+    if (!d) return;
+    const start = `${d.date}T${d.time}`;
+    sessions.push({
+      session_key: name,
+      session_name: name,
+      date_start: start,
+      date_end: endOf(start, name),
+      from_schedule: true,
+      ...place,
+    });
+  };
   push('Practice 1', race.FirstPractice);
   push('Practice 2', race.SecondPractice);
   push('Practice 3', race.ThirdPractice);
   push('Sprint Qualifying', race.SprintQualifying);
   push('Sprint', race.Sprint);
   push('Qualifying', race.Qualifying);
+
+  const raceStart = `${race.date}T${race.time || '00:00:00Z'}`;
   sessions.push({
     session_key: 'race',
     session_name: 'Race',
-    date_start: `${race.date}T${race.time || '00:00:00Z'}`,
-    date_end: `${race.date}T${race.time || '00:00:00Z'}`,
+    date_start: raceStart,
+    date_end: endOf(raceStart, 'Race'),
+    from_schedule: true,
+    ...place,
   });
   return sessions;
 };
+
+/** The session running right now within a race weekend, if any. */
+export const findLiveSession = (race, now = new Date()) =>
+  getRaceSessions(race).find(s =>
+    new Date(s.date_start) <= now && now <= new Date(s.date_end)
+  ) ?? null;
 
 /** Normalize a Jolpica race to an OpenF1-compatible meeting shape for GPCard */
 export const raceToMeeting = (race) => ({

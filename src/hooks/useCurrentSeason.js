@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { getSessions } from '../services/openf1';
+import { getSeasonSchedule } from '../services/jolpica';
+import { getRaceSessions } from './useSchedule';
 import { isPast } from '../utils/time';
 
 const CACHE_KEY = 'gf1_last_session_v1';
@@ -19,8 +21,19 @@ const saveCache = (year, session) => {
   } catch {}
 };
 
-// Fetches all sessions for the year in one call (no getMeetings needed).
-// Shows cached data immediately on subsequent loads — survives OpenF1 429s.
+const lastCompleted = (sessions) => {
+  const done = sessions.filter(s => isPast(s.date_end));
+  return done[done.length - 1] ?? null;
+};
+
+/**
+ * The most recently finished session of the season.
+ *
+ * OpenF1 is preferred because it carries real session keys and end times, but it
+ * answers 401 to unauthenticated clients while any session is live — so the Jolpica
+ * calendar stands in, which is enough to identify the session and fetch its official
+ * classification. Cached so a later visit shows something immediately.
+ */
 export const useCurrentSeason = (year = new Date().getFullYear()) => {
   const [lastSession, setLastSession] = useState(() => loadCache(year));
   const [loading, setLoading] = useState(() => loadCache(year) === null);
@@ -29,13 +42,21 @@ export const useCurrentSeason = (year = new Date().getFullYear()) => {
     let cancelled = false;
     if (loadCache(year) === null) setLoading(true);
 
-    getSessions({ year })
-      .then(sessions => {
-        if (cancelled) return;
-        const completed = sessions.filter(s => isPast(s.date_end));
-        const session = completed[completed.length - 1] ?? null;
+    const fromTiming = () =>
+      getSessions({ year }).then(sessions => lastCompleted(sessions ?? []));
+
+    const fromSchedule = () =>
+      getSeasonSchedule(year).then(races =>
+        lastCompleted(races.flatMap(getRaceSessions))
+      );
+
+    fromTiming()
+      .catch(() => null)
+      .then(session => session ?? fromSchedule())
+      .then(session => {
+        if (cancelled || !session) return;
         setLastSession(session);
-        if (session) saveCache(year, session);
+        saveCache(year, session);
       })
       .catch(console.error)
       .finally(() => { if (!cancelled) setLoading(false); });

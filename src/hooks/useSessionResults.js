@@ -137,7 +137,9 @@ const buildFromJolpica = async ({ sessionKey, isRace, round, year }) => {
       },
       gap: isRace
         ? (r.Time?.time ?? (r.status !== 'Finished' ? r.status : null))
-        : (r.Q3 ?? r.Q2 ?? r.Q1 ?? null),
+        // Jolpica sends "" for a segment the driver did not reach, so take the last
+        // one they actually set: ?? would stop at the empty Q3 of a Q2 elimination.
+        : ([r.Q3, r.Q2, r.Q1].find(t => t) ?? null),
       points: r.points ?? null,
       status: r.status ?? null,
     };
@@ -172,6 +174,7 @@ export const useSessionResults = ({
 }) => {
   const [results, setResults] = useState([]);
   const [provisional, setProvisional] = useState(false);
+  const [timingUnavailable, setTimingUnavailable] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -199,10 +202,29 @@ export const useSessionResults = ({
         ? attempts < MAX_BLIND_POLLS
         : Date.now() - endedAt < OFFICIAL_WAIT_MS;
 
+    // Sessions taken from the calendar carry their name as the key; only a real
+    // OpenF1 session_key is numeric, and only that can be used for timing data.
+    const hasTimingKey = Number.isFinite(Number(sessionKey));
+
+    // OpenF1 returns 401 to unauthenticated clients for as long as any session is
+    // live, so a failure here is expected rather than exceptional.
+    const tryTiming = async (opts) => {
+      if (!hasTimingKey) return null;
+      try {
+        return await buildFromOpenF1(sessionKey, opts);
+      } catch {
+        return null;
+      }
+    };
+
     const buildResults = async () => {
       if (isPractice) {
-        const data = await buildFromOpenF1(sessionKey, { withBestLap: true });
-        return { data, isProvisional: false };
+        // Practice has no official classification anywhere — timing data is the only
+        // source, so without it there is nothing to show and nothing to wait for.
+        const data = await tryTiming({ withBestLap: true });
+        return data == null
+          ? { data: [], isProvisional: false, unavailable: true }
+          : { data, isProvisional: false };
       }
 
       if (!isRace && !isQualifying) return { data: [], isProvisional: false };
@@ -226,8 +248,10 @@ export const useSessionResults = ({
       }
 
       // Official data not published yet — serve OpenF1 timing data meanwhile.
-      const data = await buildFromOpenF1(sessionKey, { withBestLap: false });
-      return { data, isProvisional: true };
+      const data = await tryTiming({ withBestLap: false });
+      return data == null
+        ? { data: [], isProvisional: false, unavailable: true }
+        : { data, isProvisional: true };
     };
 
     const schedule = (ms) => {
@@ -242,13 +266,15 @@ export const useSessionResults = ({
         setError(null);
         setResults([]);
         setProvisional(false);
+        setTimingUnavailable(false);
       }
 
       try {
-        const { data, isProvisional } = await buildResults();
+        const { data, isProvisional, unavailable } = await buildResults();
         if (cancelled) return;
         setResults(data);
         setProvisional(isProvisional);
+        setTimingUnavailable(!!unavailable);
 
         if (isLive) {
           schedule(POLL_LIVE_MS);
@@ -276,5 +302,5 @@ export const useSessionResults = ({
     };
   }, [sessionKey, sessionType, round, meetingName, year, isLive, sessionEnd]);
 
-  return { results, provisional, loading, error };
+  return { results, provisional, timingUnavailable, loading, error };
 };

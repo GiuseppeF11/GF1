@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { getSessions } from '../services/openf1';
 import { getSeasonSchedule } from '../services/jolpica';
+import { findLiveSession } from './useSchedule';
 
 const scheduleCache = {};
 const getScheduleCached = (year) => {
@@ -8,54 +8,45 @@ const getScheduleCached = (year) => {
   return scheduleCache[year];
 };
 
+const TICK_MS = 30_000;
+
+/**
+ * Whether a session is running right now, derived from the Jolpica calendar.
+ *
+ * This deliberately does not ask OpenF1. OpenF1 answers 401 to unauthenticated
+ * clients for as long as a session is live — exactly the window this hook exists to
+ * detect — so depending on it meant the live badge could never light up.
+ */
 export const useLiveSession = () => {
   const [state, setState] = useState({ isLive: false, liveSession: null, year: null, round: null });
 
-  const check = async () => {
-    const year = new Date().getFullYear();
-    const now = new Date();
-
-    try {
-      const schedule = await getScheduleCached(year);
-
-      // Pre-check: only call OpenF1 if we're within a race weekend
-      const currentRace = schedule.find(r => {
-        const fp1 = r.FirstPractice;
-        const weekendStart = fp1
-          ? new Date(`${fp1.date}T${fp1.time}`)
-          : new Date(`${r.date}T${r.time || '00:00:00Z'}`);
-        const raceEnd = new Date(`${r.date}T${r.time || '00:00:00Z'}`);
-        raceEnd.setHours(raceEnd.getHours() + 4); // 4h buffer post-race
-        return weekendStart <= now && now <= raceEnd;
-      });
-
-      if (!currentRace) {
-        setState({ isLive: false, liveSession: null, year: null, round: null });
-        return;
-      }
-
-      const sessions = await getSessions({ year });
-      const active = sessions.find(s => {
-        const start = new Date(s.date_start);
-        const end = new Date(s.date_end);
-        return start <= now && now <= end;
-      });
-
-      setState({
-        isLive: !!active,
-        liveSession: active ?? null,
-        year: active ? year : null,
-        round: active ? currentRace.round : null,
-      });
-    } catch {
-      // silent fail — don't show stale live state
-    }
-  };
-
   useEffect(() => {
+    let cancelled = false;
+    let timer = null;
+
+    const check = async () => {
+      const year = new Date().getFullYear();
+      try {
+        const schedule = await getScheduleCached(year);
+        if (cancelled) return;
+
+        const now = new Date();
+        for (const race of schedule) {
+          const session = findLiveSession(race, now);
+          if (session) {
+            setState({ isLive: true, liveSession: session, year, round: race.round });
+            return;
+          }
+        }
+        setState({ isLive: false, liveSession: null, year: null, round: null });
+      } catch {
+        // Leave the previous state rather than claiming nothing is running.
+      }
+    };
+
     check();
-    const interval = setInterval(check, 30_000);
-    return () => clearInterval(interval);
+    timer = setInterval(check, TICK_MS);
+    return () => { cancelled = true; clearInterval(timer); };
   }, []);
 
   return state;
