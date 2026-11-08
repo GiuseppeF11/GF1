@@ -207,7 +207,13 @@ export const useSessionResults = ({
             round: resolvedRound,
             year,
           });
-          if (official.length > 0) return { data: official, isProvisional: false };
+          if (official.length > 0) {
+            // Jolpica publishes the order before the lap times and backfills them
+            // later, so a classification where nobody has a time is not final yet.
+            // Without this the poll would stop and the times would never appear.
+            const noTimes = official.every(r => r.gap == null);
+            return { data: official, isProvisional: false, partial: noTimes };
+          }
         }
       }
 
@@ -234,7 +240,7 @@ export const useSessionResults = ({
       }
 
       try {
-        const { data, isProvisional, unavailable } = await buildResults();
+        const { data, isProvisional, unavailable, partial } = await buildResults();
         if (cancelled) return;
         setResults(data);
         setProvisional(isProvisional);
@@ -242,7 +248,7 @@ export const useSessionResults = ({
 
         if (isLive) {
           schedule(POLL_LIVE_MS);
-        } else if ((isProvisional || data.length === 0) && withinWaitWindow()) {
+        } else if ((isProvisional || partial || data.length === 0) && withinWaitWindow()) {
           schedule(delay);
           delay = Math.min(delay * 1.5, POLL_MAX_MS);
         }
