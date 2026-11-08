@@ -4,6 +4,7 @@ import CountdownTimer from './CountdownTimer';
 import { getFlagUrl } from '../../utils/flags';
 import { getTeamColor } from '../../utils/teamColors';
 import { toItalianDate, toItalianTime, isPast } from '../../utils/time';
+import { getRaceSessions } from '../../hooks/useSchedule';
 
 const raceUtcOf = (race) => `${race.date}T${race.time || '00:00:00Z'}`;
 
@@ -12,15 +13,20 @@ const weekendStartOf = (race) => {
   return first ? `${first.date}T${first.time}` : raceUtcOf(race);
 };
 
-const sessionsOf = (race) => [
-  race.FirstPractice && { label: 'P1', utc: `${race.FirstPractice.date}T${race.FirstPractice.time}` },
-  race.SecondPractice && { label: 'P2', utc: `${race.SecondPractice.date}T${race.SecondPractice.time}` },
-  race.ThirdPractice && { label: 'P3', utc: `${race.ThirdPractice.date}T${race.ThirdPractice.time}` },
-  race.SprintQualifying && { label: 'SQ', utc: `${race.SprintQualifying.date}T${race.SprintQualifying.time}` },
-  race.Sprint && { label: 'Sprint', utc: `${race.Sprint.date}T${race.Sprint.time}` },
-  race.Qualifying && { label: 'Q', utc: `${race.Qualifying.date}T${race.Qualifying.time}` },
-  { label: 'Gara', utc: raceUtcOf(race) },
-].filter(Boolean);
+const SESSION_LABELS = {
+  'Sprint Qualifying': 'SQ',
+  'Sprint': 'Sprint',
+  'Qualifying': 'Q',
+  'Race': 'Gara',
+};
+
+// Built from the shared session list so the card offers exactly what the GP page
+// can open — listing practice here would promise a session that no longer exists.
+const sessionsOf = (race) =>
+  getRaceSessions(race).map(s => ({
+    label: SESSION_LABELS[s.session_name] ?? s.session_name,
+    utc: s.date_start,
+  }));
 
 /** past | live | next | future — drives what the card shows in its body slot. */
 const stateOf = (race, isNext, liveRound) => {
