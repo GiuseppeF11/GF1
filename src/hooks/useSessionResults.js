@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getFinalPositions, getDrivers, getLaps, getIntervals } from '../services/openf1';
+import { getFinalPositions, getDrivers, getIntervals } from '../services/openf1';
 import { getSeasonSchedule, getRaceResults, getQualifyingResults } from '../services/jolpica';
 import { DRIVER_STATICS_2026 } from '../utils/driverStatics2026';
 
@@ -38,12 +38,6 @@ const POLL_MIN_MS = 20_000;
 const POLL_MAX_MS = 120_000;
 const MAX_BLIND_POLLS = 20;
 
-const formatLapTime = (secs) => {
-  const m = Math.floor(secs / 60);
-  const s = (secs % 60).toFixed(3).padStart(6, '0');
-  return `${m}:${s}`;
-};
-
 const buildDriverMap = (openF1Drivers) => {
   const acronymMap = new Map(DRIVER_STATICS_2026);
   return new Map(
@@ -52,40 +46,20 @@ const buildDriverMap = (openF1Drivers) => {
 };
 
 /**
- * Classification derived from OpenF1 timing data. Available as soon as a session ends,
- * so it fills the gap before the official classification is published.
- * For practice it is also the final source — Jolpica has no practice results at all.
+ * Classification derived from OpenF1 timing data. Available as soon as a session
+ * ends, so it fills the gap before the official classification is published.
  */
-const buildFromOpenF1 = async (sessionKey, { withBestLap }) => {
-  const [positions, drivers, extra] = await Promise.all([
+const buildFromOpenF1 = async (sessionKey) => {
+  const [positions, drivers, intervals] = await Promise.all([
     getFinalPositions(sessionKey),
     getDrivers(sessionKey).catch(() => []),
-    withBestLap
-      ? getLaps(sessionKey).catch(() => [])
-      : getIntervals(sessionKey).catch(() => []),
+    getIntervals(sessionKey).catch(() => []),
   ]);
 
   const driverMap = buildDriverMap(drivers);
 
-  if (withBestLap) {
-    const bestLapMap = new Map();
-    for (const lap of extra) {
-      if (lap.is_pit_out_lap || !lap.lap_duration) continue;
-      const prev = bestLapMap.get(lap.driver_number);
-      if (!prev || lap.lap_duration < prev) bestLapMap.set(lap.driver_number, lap.lap_duration);
-    }
-    return positions.map(p => ({
-      position: p.position,
-      driver_number: p.driver_number,
-      driver: driverMap.get(p.driver_number) ?? null,
-      gap: bestLapMap.has(p.driver_number) ? formatLapTime(bestLapMap.get(p.driver_number)) : null,
-      points: null,
-      status: null,
-    }));
-  }
-
   const lastIntervalMap = new Map();
-  for (const iv of extra) {
+  for (const iv of intervals) {
     lastIntervalMap.set(iv.driver_number, iv);
   }
 
@@ -190,7 +164,6 @@ export const useSessionResults = ({
     let delay = POLL_MIN_MS;
     let attempts = 0;
 
-    const isPractice = sessionType?.startsWith('Practice');
     const isRace = sessionType === 'Race' || sessionType === 'Sprint';
     const isQualifying = sessionType === 'Qualifying' || sessionType === 'Sprint Qualifying';
 
@@ -208,25 +181,16 @@ export const useSessionResults = ({
 
     // OpenF1 returns 401 to unauthenticated clients for as long as any session is
     // live, so a failure here is expected rather than exceptional.
-    const tryTiming = async (opts) => {
+    const tryTiming = async () => {
       if (!hasTimingKey) return null;
       try {
-        return await buildFromOpenF1(sessionKey, opts);
+        return await buildFromOpenF1(sessionKey);
       } catch {
         return null;
       }
     };
 
     const buildResults = async () => {
-      if (isPractice) {
-        // Practice has no official classification anywhere — timing data is the only
-        // source, so without it there is nothing to show and nothing to wait for.
-        const data = await tryTiming({ withBestLap: true });
-        return data == null
-          ? { data: [], isProvisional: false, unavailable: true }
-          : { data, isProvisional: false };
-      }
-
       if (!isRace && !isQualifying) return { data: [], isProvisional: false };
 
       // A live session has no official classification yet by definition.
@@ -248,7 +212,7 @@ export const useSessionResults = ({
       }
 
       // Official data not published yet — serve OpenF1 timing data meanwhile.
-      const data = await tryTiming({ withBestLap: false });
+      const data = await tryTiming();
       return data == null
         ? { data: [], isProvisional: false, unavailable: true }
         : { data, isProvisional: true };

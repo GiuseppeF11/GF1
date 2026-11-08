@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useSeason } from '../../contexts/SeasonContext';
-import { useSchedule, getRaceSessions } from '../../hooks/useSchedule';
+import { useSchedule, getRaceSessions, isShownSession } from '../../hooks/useSchedule';
 import { getMeetings, getSessions } from '../../services/openf1';
 import { useSessionResults } from '../../hooks/useSessionResults';
 import { isPast, formatSessionName } from '../../utils/time';
@@ -23,8 +23,6 @@ const RaceResultsTable = ({ results, sessionType }) => {
     );
   }
 
-  const isPractice = sessionType?.startsWith('Practice');
-  const isQual = sessionType === 'Qualifying' || sessionType === 'Sprint Qualifying';
   const isRace = sessionType === 'Race' || sessionType === 'Sprint';
 
   return (
@@ -150,7 +148,7 @@ const ResultsRaces = () => {
     if (!m?.meeting_key) { setOpenF1Sessions([]); return; }
     let cancelled = false;
     getSessions({ meeting_key: m.meeting_key })
-      .then(data => { if (!cancelled) setOpenF1Sessions(data); })
+      .then(data => { if (!cancelled) setOpenF1Sessions((data ?? []).filter(isShownSession)); })
       .catch(() => { if (!cancelled) setOpenF1Sessions([]); });
     return () => { cancelled = true; };
   }, [selectedRace?.round, openF1Meetings.length]);

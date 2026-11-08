@@ -53,13 +53,18 @@ export const findRoundByDate = (races, utcStr) => {
   return match?.round ? Number(match.round) : null;
 };
 
+// The sessions the app shows. Practice is left out on purpose: it has no official
+// classification anywhere, so OpenF1 is its only source, and OpenF1 locks out
+// unauthenticated clients for the whole of a live session. Everything listed here
+// comes from Jolpica, which means a race weekend never blanks the app out.
+export const SHOWN_SESSIONS = ['Sprint Qualifying', 'Sprint', 'Qualifying', 'Race'];
+
+export const isShownSession = (session) =>
+  SHOWN_SESSIONS.includes(session?.session_name);
+
 // Jolpica publishes a start time per session but no end time. These are the regulation
-// lengths, and they are what lets the app tell a finished session from a running one
-// when OpenF1 — which does carry real end times — cannot be reached.
+// lengths, and they are what lets the app tell a finished session from a running one.
 const SESSION_MINUTES = {
-  'Practice 1': 60,
-  'Practice 2': 60,
-  'Practice 3': 60,
   'Sprint Qualifying': 45,
   'Sprint': 30,
   'Qualifying': 60,
@@ -95,9 +100,6 @@ export const getRaceSessions = (race) => {
       ...place,
     });
   };
-  push('Practice 1', race.FirstPractice);
-  push('Practice 2', race.SecondPractice);
-  push('Practice 3', race.ThirdPractice);
   push('Sprint Qualifying', race.SprintQualifying);
   push('Sprint', race.Sprint);
   push('Qualifying', race.Qualifying);

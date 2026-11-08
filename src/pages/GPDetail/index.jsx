@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { getSeasonSchedule } from '../../services/jolpica';
 import { getMeetings, getSessions } from '../../services/openf1';
 import { useSessionResults } from '../../hooks/useSessionResults';
-import { getRaceSessions } from '../../hooks/useSchedule';
+import { getRaceSessions, isShownSession } from '../../hooks/useSchedule';
 import { getFlagUrl } from '../../utils/flags';
 import { isPast, toItalianTime, toItalianDate, formatGPWeekend } from '../../utils/time';
 import ResultsTable from '../../components/ui/ResultsTable';
@@ -131,7 +131,9 @@ const GPDetail = () => {
     let cancelled = false;
     setSessionsLoading(true);
     getSessions({ meeting_key: meeting.meeting_key })
-      .then(data => { if (!cancelled) setOpenF1Sessions(data); })
+      // Practice is filtered out here too: OpenF1 would otherwise reintroduce the
+      // sessions the app deliberately no longer shows.
+      .then(data => { if (!cancelled) setOpenF1Sessions((data ?? []).filter(isShownSession)); })
       // OpenF1 answers 401 while a session is live; the schedule covers for it.
       .catch(() => { if (!cancelled) setOpenF1Sessions([]); })
       .finally(() => { if (!cancelled) setSessionsLoading(false); });
@@ -150,12 +152,6 @@ const GPDetail = () => {
     const completed = list.filter(s => isPast(s.date_end));
     setSelectedSession(active ?? completed[completed.length - 1] ?? null);
   }, [race?.round, openF1Sessions.length]);
-
-  const isRaceLikeSession =
-    selectedSession?.session_name === 'Race' ||
-    selectedSession?.session_name === 'Sprint' ||
-    selectedSession?.session_name === 'Qualifying' ||
-    selectedSession?.session_name === 'Sprint Qualifying';
 
   // Determine if selected session is currently live
   const isSessionLive = selectedSession
@@ -312,12 +308,10 @@ const GPDetail = () => {
             <SkeletonRows rows={8} />
           ) : results.length === 0 && timingUnavailable ? (
             <div className="py-10 text-center">
-              <p className="text-sm text-f1-muted">Dati di cronometraggio non disponibili</p>
+              <p className="text-sm text-f1-muted">Classifica in tempo reale non disponibile</p>
               <p className="mx-auto mt-1 max-w-sm text-xs text-white/25">
-                OpenF1 chiude l'accesso pubblico mentre una sessione è in corso.
-                {isRaceLikeSession
-                  ? ' La classifica ufficiale compare qui appena viene pubblicata.'
-                  : ' I tempi torneranno visibili a weekend concluso.'}
+                Nessuna fonte gratuita espone l'ordine durante la sessione.
+                La classifica ufficiale compare qui appena viene pubblicata, senza ricaricare.
               </p>
             </div>
           ) : (
